@@ -1,0 +1,145 @@
+import type fr from './fr';
+
+const zh = {
+  common: {
+    retry: '重试',
+    errorDetail: '技术细节',
+  },
+  nav: {
+    label: '主导航',
+    read: '阅读',
+    help: '帮助',
+    licenses: '许可',
+  },
+  language: {
+    label: '界面语言',
+    fr: 'FR',
+    zh: '中文',
+  },
+  home: {
+    heroTitle: '法语阅读练习',
+    heroSubtitle: '精选适合 A2–B2 水平的法语短文，边读边练。',
+    filterLabel: '按级别筛选',
+    filterAll: '全部',
+    count_one: '共 {{count}} 篇',
+    count_other: '共 {{count}} 篇',
+    loading: '正在加载文章……',
+    empty: '该级别暂时没有文章。',
+    loadErrorTitle: '文章列表加载失败',
+    loadErrorMessage: '请检查网络后重试。',
+  },
+  read: {
+    loading: '正在加载文章……',
+    loadErrorTitle: '文章加载失败',
+    loadErrorMessage: '请检查网络后重试。',
+    missingId: '缺少文章 ID',
+    showChinese: '中文对照',
+    practiceCta: '开始练习',
+    explanationTitle: '词汇与翻译',
+    close: '关闭',
+    translate: '查翻译',
+    translating: '正在查询……',
+    translateError: '翻译查询失败，请稍后再试。',
+    translateSelection: '翻译选中',
+    selectedText: '选中文本',
+    termAria: '{{term}}：{{explanation}}',
+  },
+  practice: {
+    loading: '正在加载练习……',
+    loadErrorTitle: '练习加载失败',
+    loadErrorMessage: '请检查网络后重试。',
+    missingId: '缺少文章 ID',
+    kicker: '练习模式',
+    intro: '先读法语文章，再完成 {{count}} 道题。',
+    rulesLink: '查看规则',
+    questions: '题目',
+    submit: '交卷',
+    submitHint: '未作答的题目按错误计分。',
+    score: '得分：{{score}} / {{total}}',
+    unlocked: '解析已解锁：可查看每题的说明、原文依据、词汇解释与中文译文。',
+    showChinese: '中文对照',
+    hideTimer: '隐藏计时',
+    showTimer: '显示计时',
+    timerAria: '练习用时',
+    back: '返回阅读',
+    reread: '再读一遍文章',
+    markedWords: '已标记生词',
+    mark: '标记',
+    correct: '回答正确',
+    incorrect: '回答错误',
+    yourAnswer: '你的选择：',
+    notAnswered: '未作答',
+    evidence: '原文依据：',
+    translateSelection: '翻译选中',
+    close: '关闭',
+    translate: '查翻译',
+    translating: '正在查询……',
+    translateError: '翻译查询失败，请稍后再试。',
+    markAria: '选中文本操作',
+    questionNumber: '第 {{number}} 题',
+    termAria: '{{term}}：{{explanation}}',
+  },
+  help: {
+    title: '帮助',
+    intro: '了解如何阅读文章、完成练习和调整界面。',
+    read: {
+      title: '阅读',
+      body: '点击单词可查看解释；选中一段文字即可翻译。「中文对照」按钮会在标题、摘要和每个句子下方显示中文翻译。',
+    },
+    practice: {
+      title: '练习',
+      body: '练习期间，交卷前不提供任何解释或翻译。计时器可以隐藏，也可以标记生词。交卷后，每道题都会给出解析和原文依据。重复练习时，每次记录都会保留。',
+    },
+    language: {
+      title: '界面语言',
+      body: '界面默认使用法语。点击 FR / 中文 按钮可随时切换，选择会保存在这台设备上。',
+    },
+    data: {
+      title: '数据',
+      body: '设置、答题记录和标记的生词只保存在浏览器的本地存储中。清除站点数据后这些内容会丢失。存储键以「frp:」开头。',
+    },
+    license: {
+      title: '许可',
+      body: '文章文本的来源与使用条件见许可页。',
+      link: '查看许可',
+    },
+    backToRead: '返回阅读',
+  },
+  licenses: {
+    title: '许可与来源',
+    intro:
+      '文章文本按 CC BY-SA 4.0 发布。每篇改编文的署名、原文链接与修改说明见该文章末尾；Global Voices 来源的署名放在文首。',
+    licenseLink: 'CC BY-SA 4.0',
+    legalCode: '完整许可文本',
+    sourcesTitle: '来源清单',
+    sourcesIntro:
+      '本站可能使用以下允许改编与再分发的来源。当前样例文章来自 Wikipédia FR，每篇实际使用的来源以文章自带署名块为准。',
+    sourceLicense: '原许可：{{license}}',
+    unescoNote: 'UNESCO：仅使用文字内容；本站不是 UNESCO 官方出版物。',
+    sourcesNote:
+      '本站与上述来源方无隶属关系，也不表示来源方认可本站的改编内容。图片来源需单独取得许可，本站不使用来源方 logo。',
+    codeTitle: '代码许可',
+    codeBody:
+      '代码 © 作者，保留所有权利。CC BY-SA 4.0 的 ShareAlike 条件只适用于文章改编文本，不适用于应用代码、界面与品牌。',
+    contactTitle: '联系与删除请求',
+    contactBody:
+      '若您是权利人，认为本站内容侵犯了您的权益，请在本项目代码仓库提交 issue 联系我们，并附上文章链接与权利依据。我们会在核实后删除或调整相关内容。联系方式与仓库地址将在发布前补充。',
+  },
+  onboarding: {
+    title: '首次访问',
+    body: '帮助页介绍了阅读、练习和界面语言的用法，也可以随时从导航栏进入。',
+    openHelp: '打开帮助',
+    dismiss: '关闭',
+  },
+  licenseBlock: {
+    aria: '署名与许可',
+  },
+  errors: {
+    unexpected: '发生了意外错误。',
+  },
+  themes: {
+    culture: '文化',
+  },
+} satisfies typeof fr;
+
+export default zh;

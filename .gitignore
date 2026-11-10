@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+*.local
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!.env.production
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+.openchamber/
+
+# Superpowers SDD scratch workspace
+.superpowers/
+
+# Test / tooling caches
+coverage/
+.vitest/
+playwright-report/
+test-results/
+
+# Content is fetched at runtime; no local copy is committed.
+public/data/

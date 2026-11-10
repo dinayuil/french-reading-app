@@ -1,0 +1,148 @@
+const fr = {
+  common: {
+    retry: 'Réessayer',
+    errorDetail: 'Détail technique',
+  },
+  nav: {
+    label: 'Navigation principale',
+    read: 'Lectures',
+    help: 'Aide',
+    licenses: 'Licences',
+  },
+  language: {
+    label: "Langue de l'interface",
+    fr: 'FR',
+    zh: '中文',
+  },
+  home: {
+    heroTitle: 'Lecture en français',
+    heroSubtitle:
+      'Des textes en français, du niveau A2 au B2, à lire et à pratiquer.',
+    filterLabel: 'Filtrer par niveau',
+    filterAll: 'Tous',
+    count_one: '{{count}} article',
+    count_other: '{{count}} articles',
+    loading: 'Chargement des articles…',
+    empty: 'Aucun article à ce niveau pour le moment.',
+    loadErrorTitle: 'Impossible de charger la liste',
+    loadErrorMessage: 'Vérifiez votre connexion, puis réessayez.',
+  },
+  read: {
+    loading: 'Chargement…',
+    loadErrorTitle: "Impossible de charger l'article.",
+    loadErrorMessage: 'Vérifiez votre connexion, puis réessayez.',
+    missingId: "Identifiant d'article manquant",
+    showChinese: 'Traduction chinoise',
+    practiceCta: "Commencer l'exercice",
+    explanationTitle: 'Vocabulaire et traduction',
+    close: 'Fermer',
+    translate: 'Traduire',
+    translating: 'Recherche en cours…',
+    translateError: 'La traduction a échoué. Réessayez plus tard.',
+    translateSelection: 'Traduire la sélection',
+    selectedText: 'Texte sélectionné',
+    termAria: '{{term}} : {{explanation}}',
+  },
+  practice: {
+    loading: "Chargement de l'exercice…",
+    loadErrorTitle: "Impossible de charger l'exercice",
+    loadErrorMessage: 'Vérifiez votre connexion, puis réessayez.',
+    missingId: "Identifiant d'article manquant",
+    kicker: 'Mode exercice',
+    intro:
+      "Lisez l'article en français, puis répondez aux questions ({{count}}).",
+    rulesLink: 'Voir les règles',
+    questions: 'Questions',
+    submit: 'Valider mes réponses',
+    submitHint: 'Les questions sans réponse comptent comme fausses.',
+    score: 'Score : {{score}} / {{total}}',
+    unlocked:
+      'Après validation : consultez les explications de chaque question, les passages justificatifs, le vocabulaire et la traduction chinoise.',
+    showChinese: 'Traduction chinoise',
+    hideTimer: 'Masquer le chronomètre',
+    showTimer: 'Afficher le chronomètre',
+    timerAria: "Temps de l'exercice",
+    back: 'Retour à la lecture',
+    reread: "Relire l'article",
+    markedWords: 'Mots marqués',
+    mark: 'Marquer',
+    correct: 'Bonne réponse',
+    incorrect: 'Réponse incorrecte',
+    yourAnswer: 'Votre réponse :',
+    notAnswered: 'Sans réponse',
+    evidence: 'Justification :',
+    translateSelection: 'Traduire la sélection',
+    close: 'Fermer',
+    translate: 'Traduire',
+    translating: 'Recherche en cours…',
+    translateError: 'La traduction a échoué. Réessayez plus tard.',
+    markAria: 'Actions sur le texte sélectionné',
+    questionNumber: 'Question {{number}}',
+    termAria: '{{term}} : {{explanation}}',
+  },
+  help: {
+    title: 'Aide',
+    intro:
+      "Comment lire les textes, faire les exercices et régler l'interface.",
+    read: {
+      title: 'Lecture',
+      body: "Cliquez sur un mot pour afficher son explication. Sélectionnez un passage pour le traduire. Le bouton « Traduction chinoise » affiche la traduction sous le titre, le résumé et chaque phrase.",
+    },
+    practice: {
+      title: 'Exercices',
+      body: "Pendant un exercice, aucune aide ni traduction n'est disponible avant de valider vos réponses. Le chronomètre peut être masqué et vous pouvez marquer les mots difficiles. Après validation, chaque réponse est expliquée avec la phrase du texte qui la justifie. Si vous refaites l'exercice, chaque tentative validée est enregistrée dans votre navigateur.",
+    },
+    language: {
+      title: "Langue de l'interface",
+      body: "L'interface est en français par défaut. Utilisez les boutons FR / 中文 pour passer au chinois. Votre choix est mémorisé sur cet appareil.",
+    },
+    data: {
+      title: 'Données',
+      body: "Vos réglages, vos réponses et vos mots marqués sont conservés uniquement dans le stockage local de votre navigateur. Effacer les données du site les supprime définitivement. Les clés utilisées commencent par « frp: ».",
+    },
+    license: {
+      title: 'Licences',
+      body: 'Les sources et les conditions de réutilisation des textes sont détaillées sur la page des licences.',
+      link: 'Voir les licences',
+    },
+    backToRead: 'Retour aux lectures',
+  },
+  licenses: {
+    title: 'Licences et sources',
+    intro:
+      "Les textes des articles sont publiés sous CC BY-SA 4.0. L'attribution, le lien vers la source et la mention des modifications figurent à la fin de chaque article adapté ; pour les sources Global Voices, l'attribution est placée en tête d'article.",
+    licenseLink: 'CC BY-SA 4.0',
+    legalCode: 'Texte complet de la licence',
+    sourcesTitle: 'Sources',
+    sourcesIntro:
+      "Le site peut utiliser les sources suivantes, qui autorisent l'adaptation et la redistribution. Les articles d'exemple proviennent de Wikipédia FR ; pour chaque article, la source réellement utilisée figure dans le bloc d'attribution.",
+    sourceLicense: "Licence d'origine : {{license}}",
+    unescoNote:
+      "UNESCO : seul le texte est utilisé ; ce site n'est pas une publication officielle de l'UNESCO.",
+    sourcesNote:
+      "Le site n'est affilié à aucune de ces sources et leur mention ne constitue pas une approbation des adaptations. Les images nécessitent une autorisation distincte ; le site n'utilise pas les logos des sources.",
+    codeTitle: 'Licence du code',
+    codeBody:
+      "Code © auteur, tous droits réservés. La clause ShareAlike de CC BY-SA 4.0 ne s'applique qu'aux textes adaptés des articles ; elle ne s'applique ni au code de l'application, ni à l'interface, ni à l'identité visuelle.",
+    contactTitle: 'Contact et demandes de retrait',
+    contactBody:
+      "Si vous êtes titulaire de droits et estimez que ce site porte atteinte à vos droits, créez un ticket dans le dépôt de code du projet en y joignant le lien de l'article et le fondement de votre demande. Nous retirerons ou ajusterons le contenu concerné après vérification. Les coordonnées et l'adresse du dépôt seront précisées avant la publication.",
+  },
+  onboarding: {
+    title: 'Première visite',
+    body: "L'aide explique la lecture, les exercices et le choix de la langue. Vous pouvez la consulter à tout moment depuis le menu.",
+    openHelp: "Ouvrir l'aide",
+    dismiss: 'Fermer',
+  },
+  licenseBlock: {
+    aria: 'Attribution et licence',
+  },
+  errors: {
+    unexpected: "Une erreur inattendue s'est produite.",
+  },
+  themes: {
+    culture: 'Culture',
+  },
+};
+
+export default fr;
