@@ -354,6 +354,23 @@ function assertArticle(value: unknown): asserts value is Article {
   requireNonEmptyString(source, 'licenseUrl', 'source.licenseUrl');
   requireNonEmptyString(source, 'retrievedAt', 'source.retrievedAt');
 
+  if (source.publishedAt !== undefined) {
+    if (
+      typeof source.publishedAt !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(source.publishedAt)
+    ) {
+      invalid('source.publishedAt', 'expected YYYY-MM-DD');
+    }
+  }
+
+  if (
+    source.attributionPosition !== undefined &&
+    source.attributionPosition !== 'top' &&
+    source.attributionPosition !== 'bottom'
+  ) {
+    invalid('source.attributionPosition', 'expected "top" or "bottom"');
+  }
+
   const adaptation = value.adaptation;
   if (!isRecord(adaptation)) {
     invalid('adaptation', 'expected an object');

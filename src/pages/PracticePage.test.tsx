@@ -189,6 +189,31 @@ describe('PracticePage', () => {
     expect(screen.getByRole('radio', { name: 'À Paris' })).not.toBeChecked();
   });
 
+  it('shows the Global Voices attribution before submitting', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue({
+      ...article,
+      source: {
+        ...article.source,
+        site: 'Global Voices en Français',
+        authors: ['Mamisoa Raveloaritiana'],
+        url: 'https://fr.globalvoices.org/2026/11/09/304239/',
+        license: 'CC BY 3.0',
+        licenseUrl: 'https://creativecommons.org/licenses/by/3.0/',
+        retrievedAt: '2026-11-10',
+        publishedAt: '2026-11-09',
+        attributionPosition: 'top',
+      },
+    });
+
+    const { container } = renderPractice();
+
+    await screen.findByRole('heading', { name: article.title });
+    const top = container.querySelector('.global-voices-attribution');
+    expect(top).not.toBeNull();
+    expect(top).toHaveTextContent('Mamisoa Raveloaritiana');
+    expect(top).toHaveTextContent('2026-11-09');
+  });
+
   it('shows a single-sentence intro with the question count and a rules link', async () => {
     renderPractice();
 

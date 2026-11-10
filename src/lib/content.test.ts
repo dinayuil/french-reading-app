@@ -305,6 +305,35 @@ describe('content loader', () => {
     await expectArticleValidationError(payload, 'source.license');
   });
 
+  it('accepts optional source publication metadata', async () => {
+    const payload = cloneArticlePayload();
+    const source = payload.source as Record<string, unknown>;
+    source.publishedAt = '2026-11-08';
+    source.attributionPosition = 'top';
+    stubFetch({ [`/data/${articlePath}`]: { body: payload } });
+    const { loadArticle } = await loadContentModule();
+
+    await expect(loadArticle(articlePath)).resolves.toMatchObject({
+      source: { publishedAt: '2026-11-08', attributionPosition: 'top' },
+    });
+  });
+
+  it('rejects an invalid source.publishedAt', async () => {
+    const payload = cloneArticlePayload();
+    const source = payload.source as Record<string, unknown>;
+    source.publishedAt = '08/11/2026';
+
+    await expectArticleValidationError(payload, 'source.publishedAt');
+  });
+
+  it('rejects an invalid source.attributionPosition', async () => {
+    const payload = cloneArticlePayload();
+    const source = payload.source as Record<string, unknown>;
+    source.attributionPosition = 'middle';
+
+    await expectArticleValidationError(payload, 'source.attributionPosition');
+  });
+
   it('rejects a question with a negative answerIndex', async () => {
     await expectInvalidAnswerIndex(-1);
   });

@@ -141,6 +141,35 @@ describe('ReadPage', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows the Global Voices attribution before the article when requested', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue({
+      ...article,
+      source: {
+        ...article.source,
+        site: 'Global Voices en Français',
+        authors: ['Mamisoa Raveloaritiana'],
+        url: 'https://fr.globalvoices.org/2026/11/09/304239/',
+        license: 'CC BY 3.0',
+        licenseUrl: 'https://creativecommons.org/licenses/by/3.0/',
+        retrievedAt: '2026-11-10',
+        publishedAt: '2026-11-09',
+        attributionPosition: 'top',
+      },
+    });
+
+    const { container } = renderRead();
+
+    await screen.findByRole('heading', { name: article.title });
+    const top = container.querySelector('.global-voices-attribution');
+    expect(top).not.toBeNull();
+    expect(top).toHaveTextContent('Mamisoa Raveloaritiana');
+    expect(top).toHaveTextContent('2026-11-09');
+    expect(
+      top!.compareDocumentPosition(screen.getByTestId('article-body')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it('shows the French loading text until the article resolves', async () => {
     let resolveArticle: (value: Article) => void = () => {};
     vi.mocked(resolveArticleById).mockImplementation(

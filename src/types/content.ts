@@ -51,6 +51,8 @@ export interface SourceMeta {
   license: string; // 'CC BY-SA 4.0'
   licenseUrl: string;
   retrievedAt: string; // YYYY-MM-DD
+  publishedAt?: string; // YYYY-MM-DD, original publication date
+  attributionPosition?: 'top' | 'bottom';
   revisionId?: string;
 }
 

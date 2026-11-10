@@ -9,6 +9,7 @@ import ErrorState from '../components/ErrorState';
 import GlossaryText from '../components/GlossaryText';
 import LevelBadge from '../components/LevelBadge';
 import LicenseBlock from '../components/LicenseBlock';
+import SourceAttribution from '../components/SourceAttribution';
 import { usePracticeSession } from '../features/practice/usePracticeSession';
 import type { Article } from '../types/content';
 import '../styles/read.css';
@@ -332,6 +333,10 @@ function PracticeRunner({ article }: { article: Article }) {
               {t('practice.showChinese')}
             </button>
           </div>
+        )}
+
+        {article.source.attributionPosition === 'top' && (
+          <SourceAttribution article={article} />
         )}
 
         <div

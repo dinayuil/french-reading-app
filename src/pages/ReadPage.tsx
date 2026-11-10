@@ -14,6 +14,7 @@ import ErrorState from '../components/ErrorState';
 import GlossaryText from '../components/GlossaryText';
 import LevelBadge from '../components/LevelBadge';
 import LicenseBlock from '../components/LicenseBlock';
+import SourceAttribution from '../components/SourceAttribution';
 import type { Article } from '../types/content';
 import '../styles/read.css';
 
@@ -196,8 +197,6 @@ function ArticleReader({ article }: { article: Article }) {
     setTranslationStatus({ kind: 'idle' });
   };
 
-  const isGlobalVoices = /global voices/i.test(article.source.site);
-
   return (
     <article className="read-page">
       <header className="read-header">
@@ -231,29 +230,8 @@ function ArticleReader({ article }: { article: Article }) {
       </header>
 
       <div className="container read-body">
-        {isGlobalVoices && (
-          <div className="global-voices-attribution">
-            <p>
-              Cette histoire de {article.source.authors.join(', ')} est parue à
-              l'origine sur Global Voices le {article.source.retrievedAt} :{' '}
-              <a
-                href={article.source.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {article.source.title}
-              </a>
-              . Adaptation simplifiée au niveau {article.level}, publiée sous{' '}
-              <a
-                href={article.license.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {article.license.name}
-              </a>
-              .
-            </p>
-          </div>
+        {article.source.attributionPosition === 'top' && (
+          <SourceAttribution article={article} />
         )}
 
         <div className="read-toolbar">
