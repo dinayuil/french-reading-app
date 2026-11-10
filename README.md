@@ -8,7 +8,7 @@ React + TypeScript + Vite 的纯静态阅读练习 App。应用代码与文章�
 
 ## 内容如何加载
 
-生产构建默认从 `https://dinayuil.github.io/french-reading-content-public/` 拉取：
+生产构建默认从 `https://blog.yosorano.cc/french-reading-content-public/` 拉取：
 
 ```text
 manifest.json → months/<YYYY-MM>.json → articles/<id>.json
