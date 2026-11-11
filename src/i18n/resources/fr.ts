@@ -98,7 +98,7 @@ const fr = {
     },
     data: {
       title: 'Données',
-      body: "Vos réglages, vos réponses et vos mots marqués sont conservés uniquement dans le stockage local de votre navigateur. Effacer les données du site les supprime définitivement. Les clés utilisées commencent par « frp: ».",
+      body: "Vos réglages, vos réponses et vos mots marqués sont conservés dans le stockage local de votre navigateur. Effacer les données du site les supprime définitivement. Les clés utilisées commencent par « frp: ». La traduction du texte sélectionné est assurée par le service tiers MyMemory (api.mymemory.translated.net) : le passage sélectionné lui est transmis pour obtenir une traduction du français vers le chinois. Ce service public, utilisé sans clé d'API, peut être limité ou indisponible ; la traduction n'apparaît alors pas, sans bloquer la lecture.",
     },
     license: {
       title: 'Licences',
