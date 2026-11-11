@@ -5,10 +5,11 @@ import HomePage from './pages/HomePage';
 import LicensesPage from './pages/LicensesPage';
 import PracticePage from './pages/PracticePage';
 import ReadPage from './pages/ReadPage';
+import { appBasename } from './lib/basename';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={appBasename(import.meta.env.BASE_URL)}>
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
