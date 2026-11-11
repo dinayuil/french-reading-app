@@ -19,16 +19,6 @@ const SOURCES = [
     url: 'https://fr.globalvoices.org/',
     license: 'CC BY 3.0',
   },
-  {
-    name: 'Wikisource FR',
-    url: 'https://fr.wikisource.org/',
-    license: 'PD / CC BY-SA',
-  },
-  {
-    name: 'UNESCO Courier',
-    url: 'https://courier.unesco.org/',
-    license: 'CC BY-SA 3.0 IGO',
-  },
 ];
 
 export default function LicensesPage() {
@@ -71,7 +61,6 @@ export default function LicensesPage() {
             </li>
           ))}
         </ul>
-        <p className="page__body">{t('licenses.unescoNote')}</p>
         <p className="page__body">{t('licenses.sourcesNote')}</p>
       </section>
 

@@ -113,9 +113,8 @@ const zh = {
     legalCode: '完整许可文本',
     sourcesTitle: '来源清单',
     sourcesIntro:
-      '本站可能使用以下允许改编与再分发的来源。当前样例文章来自 Wikipédia FR，每篇实际使用的来源以文章自带署名块为准。',
+      '本站目前使用以下允许改编与再分发的来源。每篇文章实际使用的来源以文章自带署名块为准。',
     sourceLicense: '原许可：{{license}}',
-    unescoNote: 'UNESCO：仅使用文字内容；本站不是 UNESCO 官方出版物。',
     sourcesNote:
       '本站与上述来源方无隶属关系，也不表示来源方认可本站的改编内容。图片来源需单独取得许可，本站不使用来源方 logo。',
     codeTitle: '代码许可',

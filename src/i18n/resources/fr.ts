@@ -115,10 +115,8 @@ const fr = {
     legalCode: 'Texte complet de la licence',
     sourcesTitle: 'Sources',
     sourcesIntro:
-      "Le site peut utiliser les sources suivantes, qui autorisent l'adaptation et la redistribution. Les articles d'exemple proviennent de Wikipédia FR ; pour chaque article, la source réellement utilisée figure dans le bloc d'attribution.",
+      "Le site utilise actuellement les sources suivantes, qui autorisent l'adaptation et la redistribution. Pour chaque article, la source réellement utilisée figure dans le bloc d'attribution.",
     sourceLicense: "Licence d'origine : {{license}}",
-    unescoNote:
-      "UNESCO : seul le texte est utilisé ; ce site n'est pas une publication officielle de l'UNESCO.",
     sourcesNote:
       "Le site n'est affilié à aucune de ces sources et leur mention ne constitue pas une approbation des adaptations. Les images nécessitent une autorisation distincte ; le site n'utilise pas les logos des sources.",
     codeTitle: 'Licence du code',
