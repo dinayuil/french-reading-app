@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  VITE_CONTENT_BASE_URL: https://blog.yosorano.cc/french-reading-content-public/
+  VITE_CONTENT_BASE_URL: https://raw.githubusercontent.com/dinayuil/french-reading-content-public/main/
 
 jobs:
   build:

@@ -8,12 +8,14 @@ React + TypeScript + Vite 的纯静态阅读练习 App。应用代码与文章�
 
 ## 内容如何加载
 
-生产构建默认从 `https://blog.yosorano.cc/french-reading-content-public/` 拉取：
+生产构建默认从 GitHub raw 拉取：
 
 ```text
-manifest.json → months/<YYYY-MM>.json → articles/<id>.json
+https://raw.githubusercontent.com/dinayuil/french-reading-content-public/main/
+  manifest.json → months/<YYYY-MM>.json → articles/<id>.json
 ```
 
+`content-public` 只是数据仓库，不部署、不启用 Pages；只有本仓库有 Pages。
 地址由构建时的 `VITE_CONTENT_BASE_URL` 决定，见 `.env.production`。本地开发不需要这个变量：`vite.config.ts` 里的小中间件把 `/data/*` 映射到同级的 `../content-public/`。
 
 ```text
@@ -21,7 +23,7 @@ french-reading-practice/
 ├─ app/              ← 本仓库
 ├─ content-public/   ← 开发时读取的公开内容
 ├─ content-private/  ← 流水线与原文（私有）
-└─ manager/          ← 项目文档与进度
+└─ 根目录/           ← manager 文档与状态
 ```
 
 单独克隆本仓库时，开发需要一个同级 `content-public/`，或设置 `VITE_CONTENT_BASE_URL` 指向线上内容。
