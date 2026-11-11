@@ -12,9 +12,6 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
-env:
-  VITE_CONTENT_BASE_URL: https://raw.githubusercontent.com/dinayuil/french-reading-content-public/main/
-
 jobs:
   build:
     name: Test and build
@@ -47,6 +44,7 @@ jobs:
       - name: Build
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          VITE_CONTENT_BASE_URL: https://raw.githubusercontent.com/dinayuil/french-reading-content-public/main/
         run: |
           set -euo pipefail
           BASE="${BASE_PATH:-/}"
