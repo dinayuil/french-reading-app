@@ -32,4 +32,31 @@ describe('i18n', () => {
 
     expect(fallbacks).toContain('fr');
   });
+
+  it('labels every content theme in both UI languages', () => {
+    const themes = [
+      'culture',
+      'société',
+      'science',
+      'environnement',
+      'économie',
+      'politique',
+      'sport',
+      'technologie',
+      'santé',
+      'histoire',
+      'géographie',
+    ];
+
+    for (const theme of themes) {
+      for (const language of ['fr', 'zh']) {
+        expect(
+          i18n.t(`themes.${theme}`, {
+            lng: language,
+            defaultValue: theme,
+          }),
+        ).not.toBe(theme);
+      }
+    }
+  });
 });

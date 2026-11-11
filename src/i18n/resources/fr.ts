@@ -142,6 +142,16 @@ const fr = {
   },
   themes: {
     culture: 'Culture',
+    société: 'Société',
+    science: 'Science',
+    environnement: 'Environnement',
+    économie: 'Économie',
+    politique: 'Politique',
+    sport: 'Sport',
+    technologie: 'Technologie',
+    santé: 'Santé',
+    histoire: 'Histoire',
+    géographie: 'Géographie',
   },
 };
 

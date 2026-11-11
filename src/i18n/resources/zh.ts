@@ -139,6 +139,16 @@ const zh = {
   },
   themes: {
     culture: '文化',
+    société: '社会',
+    science: '科学',
+    environnement: '环境',
+    économie: '经济',
+    politique: '政治',
+    sport: '体育',
+    technologie: '科技',
+    santé: '健康',
+    histoire: '历史',
+    géographie: '地理',
   },
 } satisfies typeof fr;
 
