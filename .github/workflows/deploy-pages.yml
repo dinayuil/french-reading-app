@@ -44,8 +44,7 @@ jobs:
       - name: Build
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
-          # Pin the verified day indexes until the content main branch migrates.
-          VITE_CONTENT_BASE_URL: https://raw.githubusercontent.com/dinayuil/french-reading-content-public/bc329d8c56c76b0ff7772e737909d9301ffafb28/
+          VITE_CONTENT_BASE_URL: https://raw.githubusercontent.com/dinayuil/french-reading-content-public/main/
         run: |
           set -euo pipefail
           BASE="${BASE_PATH:-/}"
