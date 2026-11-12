@@ -37,3 +37,11 @@ test-results/
 
 # Content is fetched at runtime; no local copy is committed.
 public/data/
+
+# Android local build output and signing material
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.jks
+*.keystore

@@ -6,7 +6,11 @@ import ReadPage from './ReadPage';
 import { resolveArticleById } from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
 import { i18n } from '../i18n';
-import * as storage from '../lib/storage';
+import { readStudyData } from '../features/data/backup';
+import {
+  getReadingProgress,
+  saveReadingProgress,
+} from '../features/data/studyData';
 import type { Article } from '../types/content';
 
 vi.mock('../lib/content', () => ({
@@ -78,7 +82,6 @@ function renderRead(path = '/read/2026-11-09-tour-eiffel') {
 }
 
 describe('ReadPage', () => {
-  let appendSessionSpy: ReturnType<typeof vi.spyOn>;
   let now = 0;
   const mountDate = new Date('2026-11-10T00:00:00Z');
 
@@ -87,7 +90,6 @@ describe('ReadPage', () => {
     vi.mocked(resolveArticleById).mockReset();
     vi.mocked(resolveArticleById).mockResolvedValue(article);
     vi.mocked(lookupFrToZh).mockReset();
-    appendSessionSpy = vi.spyOn(storage, 'appendSession').mockImplementation(() => {});
 
     vi.spyOn(performance, 'now').mockImplementation(() => now);
 
@@ -112,6 +114,9 @@ describe('ReadPage', () => {
     cleanup();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    Reflect.deleteProperty(window, 'scrollY');
+    Reflect.deleteProperty(window, 'innerHeight');
+    Reflect.deleteProperty(document.documentElement, 'scrollHeight');
   });
 
   function advanceTime(ms: number) {
@@ -482,22 +487,110 @@ describe('ReadPage', () => {
 
     unmount();
 
-    expect(appendSessionSpy).toHaveBeenCalledWith(
-      'reading-sessions',
-      expect.objectContaining({
-        articleId: article.id,
-        startedAt: mountTime,
-        durationMs: expect.any(Number),
-      }),
-    );
-    const saved = appendSessionSpy.mock.calls[0][1] as {
-      startedAt: string;
-      durationMs: number;
-    };
-    expect(saved.durationMs).toBeGreaterThanOrEqual(1900);
-    expect(saved.durationMs).toBeLessThanOrEqual(2100);
-    expect(saved.startedAt).toBe(mountTime);
-    expect(new Date(saved.startedAt).getTime()).toBeLessThan(Date.now());
+    const sessions = readStudyData().readingSessions;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({
+      articleId: article.id,
+      startedAt: mountTime,
+      durationMs: expect.any(Number),
+    });
+    expect(sessions[0].durationMs).toBeGreaterThanOrEqual(1900);
+    expect(sessions[0].durationMs).toBeLessThanOrEqual(2100);
+    expect(sessions[0].id).toEqual(expect.any(String));
+    expect(new Date(sessions[0].startedAt).getTime()).toBeLessThan(Date.now());
+  });
+
+  it('checkpoints reading time on pagehide without duplicating the session', async () => {
+    const { unmount } = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    advanceTime(2_000);
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+
+    const checkpoint = readStudyData().readingSessions;
+    expect(checkpoint).toHaveLength(1);
+    const sessionId = checkpoint[0].id;
+    expect(checkpoint[0].durationMs).toBeGreaterThanOrEqual(1_900);
+
+    advanceTime(2_000);
+    unmount();
+
+    const final = readStudyData().readingSessions;
+    expect(final).toHaveLength(1);
+    expect(final[0].id).toBe(sessionId);
+    expect(final[0].durationMs).toBeGreaterThanOrEqual(3_900);
+  });
+
+  it('checkpoints reading time when the tab is hidden', async () => {
+    renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    advanceTime(1_500);
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        value: 'hidden',
+        writable: true,
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    const sessions = readStudyData().readingSessions;
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].durationMs).toBeGreaterThanOrEqual(1_400);
+  });
+
+  it('restores a saved reading position and records completion at the end', async () => {
+    saveReadingProgress({
+      articleId: article.id,
+      position: 0.5,
+      completed: false,
+      updatedAt: '2026-11-09T10:00:00.000Z',
+    });
+    Object.defineProperty(window, 'scrollY', {
+      value: 0,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(window, 'innerHeight', {
+      value: 1_000,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(document.documentElement, 'scrollHeight', {
+      value: 2_000,
+      writable: true,
+      configurable: true,
+    });
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+
+    renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    await waitFor(() => {
+      expect(scrollTo).toHaveBeenCalledWith(0, 500);
+    });
+
+    act(() => {
+      Object.defineProperty(window, 'scrollY', {
+        value: 1_000,
+        writable: true,
+        configurable: true,
+      });
+      window.dispatchEvent(new Event('scroll'));
+    });
+
+    await waitFor(() => {
+      expect(getReadingProgress(article.id)).toMatchObject({
+        position: 1,
+        completed: true,
+      });
+    });
+
+    Reflect.deleteProperty(window, 'scrollY');
+    Reflect.deleteProperty(window, 'innerHeight');
+    Reflect.deleteProperty(document.documentElement, 'scrollHeight');
   });
 
   it('does not save a reading session when elapsed < 1000', async () => {
@@ -507,7 +600,7 @@ describe('ReadPage', () => {
     advanceTime(500);
     unmount();
 
-    expect(appendSessionSpy).not.toHaveBeenCalled();
+    expect(readStudyData().readingSessions).toHaveLength(0);
   });
 
   it('does not save a session while the article is still loading', async () => {
@@ -519,6 +612,6 @@ describe('ReadPage', () => {
     advanceTime(2_000);
     unmount();
 
-    expect(appendSessionSpy).not.toHaveBeenCalled();
+    expect(readStudyData().readingSessions).toHaveLength(0);
   });
 });

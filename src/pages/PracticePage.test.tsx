@@ -6,6 +6,7 @@ import PracticePage from './PracticePage';
 import { resolveArticleById } from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
 import { i18n } from '../i18n';
+import { readStudyData } from '../features/data/backup';
 import type { Article } from '../types/content';
 
 vi.mock('../lib/content', () => ({
@@ -96,8 +97,7 @@ function renderPractice(path = '/practice/2026-11-09-tour-eiffel') {
 }
 
 function readStoredSessions() {
-  const raw = localStorage.getItem('frp:practice-sessions');
-  return raw ? (JSON.parse(raw) as Array<Record<string, unknown>>) : [];
+  return readStudyData().practiceSessions;
 }
 
 function setVisibility(state: 'visible' | 'hidden') {
@@ -536,11 +536,16 @@ describe('PracticePage', () => {
       screen.getByRole('button', { name: 'Valider mes réponses' }),
     );
 
+    const immediately = readStoredSessions();
+    expect(immediately).toHaveLength(1);
+    expect(immediately[0].id).toEqual(expect.any(String));
+
     advanceTime(5_000);
     unmount();
 
     const sessions = readStoredSessions();
     expect(sessions).toHaveLength(1);
+    expect(sessions[0].id).toBe(immediately[0].id);
     expect(sessions[0]).toMatchObject({
       articleId: article.id,
       score: 1,
@@ -607,6 +612,93 @@ describe('PracticePage', () => {
     expect(sessions).toHaveLength(1);
     expect(sessions[0].durationMs).toBeGreaterThanOrEqual(1_900);
     expect(sessions[0].durationMs).toBeLessThanOrEqual(2_100);
+  });
+
+  it('keeps answers and the selection when saving fails, then retries', async () => {
+    mockSelection('flâner');
+    renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(screen.getByRole('radio', { name: 'À Paris' }));
+    await userEvent.click(screen.getByTestId('article-body'));
+    expect(await screen.findByTestId('mark-word')).toBeInTheDocument();
+
+    const originalSetItem = Storage.prototype.setItem;
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(function (
+        this: Storage,
+        key: string,
+        value: string,
+      ) {
+        if (key === 'frp:study-data') {
+          throw new Error('quota exceeded');
+        }
+        originalSetItem.call(this, key, value);
+      });
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Impossible d'enregistrer vos réponses. Réessayez.",
+    );
+    expect(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Score : 1 / 2')).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'À Paris' })).toBeChecked();
+    expect(screen.getByTestId('mark-word')).toBeInTheDocument();
+    expect(readStoredSessions()).toHaveLength(0);
+
+    setItem.mockRestore();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    expect(screen.getByText('Score : 1 / 2')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mark-word')).not.toBeInTheDocument();
+  });
+
+  it('keeps the selection when marking fails, then retries', async () => {
+    renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    mockSelection('flâner');
+    await userEvent.click(screen.getByTestId('article-body'));
+    const mark = await screen.findByTestId('mark-word');
+
+    const originalSetItem = Storage.prototype.setItem;
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(function (
+        this: Storage,
+        key: string,
+        value: string,
+      ) {
+        if (key === 'frp:study-data') {
+          throw new Error('quota exceeded');
+        }
+        originalSetItem.call(this, key, value);
+      });
+
+    await userEvent.click(mark);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Impossible d'enregistrer ce mot. Réessayez.",
+    );
+    expect(screen.getByTestId('mark-word')).toBeInTheDocument();
+
+    setItem.mockRestore();
+    await userEvent.click(screen.getByTestId('mark-word'));
+
+    expect(await screen.findByText('flâner')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('ignores a stale translation result after switching terms', async () => {

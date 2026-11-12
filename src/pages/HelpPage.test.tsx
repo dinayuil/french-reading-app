@@ -75,6 +75,19 @@ describe('HelpPage', () => {
     expect(screen.getByText(/计时器可以隐藏/)).toBeInTheDocument();
     expect(screen.getByText(/标记的生词/)).toBeInTheDocument();
     expect(screen.getByText(/每次记录都会保留/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: '打开学习数据' }),
+    ).toHaveAttribute('href', '/data');
+  });
+
+  it('explains backups, WebDAV and links to the data page', () => {
+    renderHelp();
+
+    expect(screen.getByText(/exporter une sauvegarde/i)).toBeInTheDocument();
+    expect(screen.getByText(/dossier WebDAV/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Ouvrir Mes données' }),
+    ).toHaveAttribute('href', '/data');
   });
 
   it('links to the licenses page and back to the reading list', () => {

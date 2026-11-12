@@ -321,6 +321,29 @@
   font-size: 0.875rem;
 }
 
+.practice-save-error {
+  margin-block: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-danger-light);
+  border-left: 3px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.practice-submit .practice-save-error {
+  flex-basis: 100%;
+  margin-block: 0;
+}
+
+.practice-save-error--toolbar {
+  max-width: min(22rem, calc(100vw - 2rem));
+  margin: 0 0 var(--space-2);
+  box-shadow: var(--shadow-md);
+  text-align: left;
+}
+
 .practice-actions {
   margin-bottom: var(--space-8);
 }

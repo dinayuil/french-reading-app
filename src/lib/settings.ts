@@ -1,4 +1,4 @@
-import { readJSON, writeJSON } from './storage';
+import { readJSON, writeJSON, writeJSONStrict } from './storage';
 import type { Settings, UiLanguage } from '../types/progress';
 
 const UI_LANGUAGES: readonly UiLanguage[] = ['fr', 'zh'];
@@ -40,4 +40,13 @@ export function saveSettings(patch: Partial<Settings>): Settings {
   const next: Settings = { ...loadSettings(), ...patch };
   writeJSON('settings', next);
   return next;
+}
+
+/**
+ * Replaces the complete settings document and lets storage errors reach the
+ * caller. Used when restoring an imported backup, where a silent failure would
+ * leave records and preferences from different states.
+ */
+export function writeSettingsStrict(settings: Settings): void {
+  writeJSONStrict('settings', settings);
 }

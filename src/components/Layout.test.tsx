@@ -4,14 +4,18 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Layout from './Layout';
 
-function renderLayout() {
+function renderLayout(initialEntry = '/') {
   return render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route element={<Layout />}>
           <Route
             path="/"
             element={<div data-testid="home-page">Home page</div>}
+          />
+          <Route
+            path="/data"
+            element={<div data-testid="data-page">Data page</div>}
           />
           <Route
             path="/licences"
@@ -35,6 +39,10 @@ describe('Layout', () => {
       'href',
       '/',
     );
+    expect(screen.getByRole('link', { name: 'Mes données' })).toHaveAttribute(
+      'href',
+      '/data',
+    );
     expect(screen.getByRole('link', { name: 'Aide' })).toHaveAttribute(
       'href',
       '/aide',
@@ -57,6 +65,10 @@ describe('Layout', () => {
     await userEvent.click(screen.getByRole('button', { name: '中文' }));
 
     expect(screen.getByRole('link', { name: '阅读' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '学习数据' })).toHaveAttribute(
+      'href',
+      '/data',
+    );
     expect(screen.getByRole('link', { name: '帮助' })).toHaveAttribute(
       'href',
       '/aide',
@@ -64,5 +76,14 @@ describe('Layout', () => {
     expect(screen.getByRole('link', { name: '许可' })).toBeInTheDocument();
     expect(screen.getByTestId('home-page')).toBeInTheDocument();
     expect(screen.queryByTestId('licenses-page')).not.toBeInTheDocument();
+  });
+
+  it('marks the data entry as the current page on its route', () => {
+    renderLayout('/data');
+
+    expect(
+      screen.getByRole('link', { name: 'Mes données' }),
+    ).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('data-page')).toBeInTheDocument();
   });
 });

@@ -6,6 +6,7 @@ const fr = {
   nav: {
     label: 'Navigation principale',
     read: 'Lectures',
+    data: 'Mes données',
     help: 'Aide',
     licenses: 'Licences',
   },
@@ -72,6 +73,8 @@ const fr = {
     questions: 'Questions',
     submit: 'Valider mes réponses',
     submitHint: 'Les questions sans réponse comptent comme fausses.',
+    saveErrorSubmit: "Impossible d'enregistrer vos réponses. Réessayez.",
+    saveErrorMark: "Impossible d'enregistrer ce mot. Réessayez.",
     score: 'Score : {{score}} / {{total}}',
     unlocked:
       'Après validation : consultez les explications de chaque question, les passages justificatifs, le vocabulaire et la traduction chinoise.',
@@ -97,6 +100,96 @@ const fr = {
     questionNumber: 'Question {{number}}',
     termAria: '{{term}} : {{explanation}}',
   },
+  data: {
+    title: 'Mes données',
+    summary: {
+      title: 'Votre activité',
+      readingTime: 'Temps de lecture',
+      readingArticles: 'Articles lus',
+      practiceAttempts: 'Exercices terminés',
+      accuracy: 'Taux de réussite',
+      empty: 'Votre activité apparaîtra après votre première lecture.',
+    },
+    duration: {
+      hoursMinutes: '{{hours}} h {{minutes}}',
+      hours: '{{hours}} h',
+      minutes: '{{minutes}} min',
+      underMinute: '< 1 min',
+      zero: '0 min',
+    },
+    export: {
+      title: 'Exporter',
+      body: 'Téléchargez vos lectures, vos exercices et vos réglages dans un seul fichier.',
+      button: 'Exporter mes données',
+      success: 'Sauvegarde exportée.',
+      error: "L'export a échoué. Réessayez.",
+    },
+    import: {
+      title: 'Importer',
+      body: 'Restaurez une sauvegarde exportée depuis cet appareil ou un autre.',
+      choose: 'Choisir un fichier de sauvegarde',
+      reading: 'Lecture du fichier…',
+      previewTitle: 'Aperçu du fichier',
+      exportedAt: 'Sauvegarde du {{date}}',
+      reading_one: '{{count}} séance de lecture',
+      reading_other: '{{count}} séances de lecture',
+      practice_one: '{{count}} exercice terminé',
+      practice_other: '{{count}} exercices terminés',
+      progress_one: '{{count}} article avec position enregistrée',
+      progress_other: '{{count}} articles avec position enregistrée',
+      merge: 'Fusionner avec mes données',
+      replace: 'Remplacer mes données',
+      confirmTitle: 'Remplacer toutes les données ?',
+      confirmBody:
+        "Les lectures, exercices et réglages de ce fichier remplaceront ceux enregistrés sur cet appareil. L'état actuel sera conservé pour pouvoir le restaurer.",
+      confirm: 'Confirmer le remplacement',
+      cancel: 'Annuler',
+      mergeSuccess: 'Sauvegarde fusionnée.',
+      replaceSuccess:
+        "Données remplacées. L'état précédent peut être restauré.",
+      restore: "Restaurer l'état précédent",
+      restoreSuccess: 'État précédent restauré.',
+      restoreError: "Impossible de restaurer l'état précédent.",
+      invalid:
+        "Ce fichier n'est pas une sauvegarde valide. Vos données n'ont pas été modifiées.",
+      tooLarge: 'Ce fichier est trop volumineux (limite : 10 Mo).',
+      applyError:
+        "L'import a échoué. Vos données actuelles n'ont pas été modifiées.",
+    },
+    sync: {
+      title: 'Synchronisation WebDAV',
+      body: 'Indiquez un dossier WebDAV HTTPS existant. Le fichier de progression y sera créé.',
+      url: 'Adresse du dossier WebDAV',
+      urlPlaceholder: 'https://exemple.fr/dav/lectures',
+      username: "Nom d'utilisateur",
+      password: 'Mot de passe',
+      passwordHint:
+        "Le mot de passe sert uniquement à cette synchronisation et n'est pas enregistré.",
+      button: 'Synchroniser',
+      busy: 'Synchronisation…',
+      success: 'Synchronisé à {{time}}.',
+      errors: {
+        nativeOnly:
+          "La synchronisation n'est disponible que dans l'application Android.",
+        invalidUrl:
+          "L'adresse WebDAV doit être un dossier HTTPS valide.",
+        auth: "Nom d'utilisateur ou mot de passe refusé.",
+        network:
+          "Connexion au serveur impossible. Vérifiez l'adresse et le réseau.",
+        invalidRemote:
+          'Le fichier de progression distant est illisible. La synchronisation a été arrêtée.',
+        unsupportedServer:
+          'Ce serveur WebDAV ne permet pas une synchronisation fiable. Essayez un autre dossier.',
+        conflict:
+          'Le fichier distant a changé pendant la synchronisation. Réessayez.',
+        remoteMissingDirectory:
+          "Le dossier WebDAV n'existe pas. Vérifiez l'adresse.",
+        storage:
+          "Les données locales n'ont pas pu être enregistrées. Vérifiez l'espace disponible.",
+        generic: 'La synchronisation a échoué. Réessayez.',
+      },
+    },
+  },
   help: {
     title: 'Aide',
     intro:
@@ -115,7 +208,8 @@ const fr = {
     },
     data: {
       title: 'Données',
-      body: "Vos réglages, vos réponses et vos mots marqués sont conservés dans le stockage local de votre navigateur. Effacer les données du site les supprime définitivement. Les clés utilisées commencent par « frp: ». La traduction du texte sélectionné est assurée par le service tiers MyMemory (api.mymemory.translated.net) : le passage sélectionné lui est transmis pour obtenir une traduction du français vers le chinois. Ce service public, utilisé sans clé d'API, peut être limité ou indisponible ; la traduction n'apparaît alors pas, sans bloquer la lecture.",
+      body: "Vos réglages, vos réponses et vos mots marqués sont conservés dans le stockage local de votre navigateur. La page « Mes données » permet de consulter votre activité, d'exporter une sauvegarde et de la réimporter sur un autre appareil. Dans l'application Android, elle permet aussi de synchroniser vos données avec votre propre dossier WebDAV ; le site web ne propose pas cette synchronisation. Effacer les données du site les supprime définitivement. Les clés utilisées commencent par « frp: ». La traduction du texte sélectionné est assurée par le service tiers MyMemory (api.mymemory.translated.net) : le passage sélectionné lui est transmis pour obtenir une traduction du français vers le chinois. Ce service public, utilisé sans clé d'API, peut être limité ou indisponible ; la traduction n'apparaît alors pas, sans bloquer la lecture.",
+      manageLink: 'Ouvrir Mes données',
     },
     license: {
       title: 'Licences',

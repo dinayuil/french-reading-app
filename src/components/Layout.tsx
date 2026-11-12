@@ -17,6 +17,9 @@ export default function Layout() {
               <NavLink to="/" className="top-bar__link" end>
                 {t('nav.read')}
               </NavLink>
+              <NavLink to="/data" className="top-bar__link">
+                {t('nav.data')}
+              </NavLink>
               <NavLink to="/aide" className="top-bar__link">
                 {t('nav.help')}
               </NavLink>

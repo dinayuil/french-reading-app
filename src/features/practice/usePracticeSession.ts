@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { appendSession } from '../../lib/storage';
+import { useCallback, useRef, useState } from 'react';
 import { scorePractice } from '../../lib/scoring';
+import { createRecordId, savePracticeSession } from '../data/studyData';
 import type { Article } from '../../types/content';
 import type { PracticeAnswer, PracticeSession } from '../../types/progress';
 
@@ -19,8 +19,9 @@ export interface PracticeSessionState {
 }
 
 /**
- * Owns the practice attempt state and writes exactly one PracticeSession when
- * the page unmounts after a submit. The duration is frozen at submit time.
+ * Owns the practice attempt state and persists exactly one PracticeSession at
+ * submit time. The duration is frozen when submitting, and the storage error
+ * propagates to the caller instead of being swallowed.
  */
 export function usePracticeSession(article: Article): PracticeSessionState {
   const [answers, setAnswers] = useState<Record<string, number | null>>({});
@@ -29,6 +30,7 @@ export function usePracticeSession(article: Article): PracticeSessionState {
   const [score, setScore] = useState(0);
   const [results, setResults] = useState<PracticeAnswer[]>([]);
   const [frozenMs, setFrozenMs] = useState<number | null>(null);
+  const [sessionId] = useState(() => createRecordId('practice'));
 
   const answersRef = useRef(answers);
   answersRef.current = answers;
@@ -39,13 +41,8 @@ export function usePracticeSession(article: Article): PracticeSessionState {
   if (startedAtRef.current === null) {
     startedAtRef.current = new Date().toISOString();
   }
-  const durationRef = useRef<number | null>(null);
   const submittedRef = useRef(false);
-  const resultRef = useRef<{ score: number; results: PracticeAnswer[] }>({
-    score: 0,
-    results: [],
-  });
-  const savedRef = useRef(false);
+  const savedSessionRef = useRef<PracticeSession | null>(null);
 
   const total = article.questions.length;
 
@@ -63,9 +60,26 @@ export function usePracticeSession(article: Article): PracticeSessionState {
   const markWord = useCallback((word: string) => {
     const trimmed = word.trim();
     if (!trimmed) return;
-    setMarkedWords((previous) =>
-      previous.includes(trimmed) ? previous : [...previous, trimmed],
-    );
+
+    const submittedSession = savedSessionRef.current;
+    if (submittedRef.current && submittedSession) {
+      if (submittedSession.markedWords.includes(trimmed)) return;
+      const next: PracticeSession = {
+        ...submittedSession,
+        markedWords: [...submittedSession.markedWords, trimmed],
+      };
+      savePracticeSession(next);
+      savedSessionRef.current = next;
+      markedWordsRef.current = next.markedWords;
+      setMarkedWords(next.markedWords);
+      return;
+    }
+
+    const current = markedWordsRef.current;
+    if (current.includes(trimmed)) return;
+    const nextWords = [...current, trimmed];
+    markedWordsRef.current = nextWords;
+    setMarkedWords(nextWords);
   }, []);
 
   const submit = useCallback(
@@ -77,39 +91,28 @@ export function usePracticeSession(article: Article): PracticeSessionState {
         answersRef.current,
         markedWordsRef.current,
       );
-      durationRef.current = elapsedMs;
+      const session: PracticeSession = {
+        id: sessionId,
+        articleId: article.id,
+        startedAt: startedAtRef.current ?? new Date().toISOString(),
+        durationMs: elapsedMs,
+        score: outcome.score,
+        total: article.questions.length,
+        answers: outcome.results,
+        markedWords: markedWordsRef.current,
+      };
+
+      savePracticeSession(session);
+
+      savedSessionRef.current = session;
       submittedRef.current = true;
-      resultRef.current = { score: outcome.score, results: outcome.results };
       setScore(outcome.score);
       setResults(outcome.results);
       setFrozenMs(elapsedMs);
       setSubmitted(true);
     },
-    [article],
+    [article, sessionId],
   );
-
-  useEffect(() => {
-    return () => {
-      if (
-        !submittedRef.current ||
-        durationRef.current === null ||
-        savedRef.current
-      ) {
-        return;
-      }
-      savedRef.current = true;
-      const session: PracticeSession = {
-        articleId: article.id,
-        startedAt: startedAtRef.current ?? new Date().toISOString(),
-        durationMs: durationRef.current,
-        score: resultRef.current.score,
-        total: article.questions.length,
-        answers: resultRef.current.results,
-        markedWords: markedWordsRef.current,
-      };
-      appendSession('practice-sessions', session);
-    };
-  }, [article.id, article.questions.length]);
 
   return {
     answers,

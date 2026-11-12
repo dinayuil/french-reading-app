@@ -16,6 +16,12 @@ export default function HelpPage() {
           <h2 className="help-page__heading">{t(`help.${section}.title`)}</h2>
           <p className="page__body">
             {t(`help.${section}.body`)}
+            {section === 'data' && (
+              <>
+                {' '}
+                <Link to="/data">{t('help.data.manageLink')}</Link>
+              </>
+            )}
             {section === 'license' && (
               <>
                 {' '}

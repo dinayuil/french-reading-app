@@ -1,6 +1,6 @@
 # 法语阅读练习（应用）
 
-React + TypeScript + Vite 的纯静态阅读练习 App。应用代码与文章内容分离：内容在独立的公开仓库 `french-reading-content-public`，应用在运行时拉取。
+React + TypeScript + Vite 阅读练习 App，提供静态网页版和 Capacitor Android 安装版。应用代码与文章内容分离：内容在独立的公开仓库 `french-reading-content-public`，应用在运行时拉取。
 
 - 应用仓库：<https://github.com/dinayuil/french-reading-app>
 - 内容仓库：<https://github.com/dinayuil/french-reading-content-public>
@@ -46,6 +46,30 @@ npm test
 npm run build     # 生产构建，内容地址来自 .env.production
 npm run preview
 ```
+
+## Android 安装版
+
+使用 Capacitor 8，界面资源打包进安装包；文章仍从上述公开内容地址加载，首次阅读需要联网。Android 使用固定的 `https://localhost` WebView origin，后续升级不要更改，以免使现有本地记录不可见。
+
+构建需要 Node.js 22+、JDK 21 和 Android SDK 36（设置 `ANDROID_HOME`）。Windows 下：
+
+```powershell
+npm ci
+npm run android:sync
+cd android
+.\gradlew.bat :app:assembleDebug
+```
+
+测试安装包：`android/app/build/outputs/apk/debug/app-debug.apk`；application ID 为 `cc.yosorano.frenchreading`。此命令生成可侧载的 debug APK，正式分发签名另行配置，签名密钥和 `local.properties` 不进入仓库。Android 资源构建使用根路径 `/` 和 `.env.production` 中的公开内容地址；网页 Pages 构建仍由其 workflow 指定项目路径。
+
+## 学习数据、导入导出与同步
+
+- 网页和安装版提供「Mes données / 学习数据」入口，记录保存在本机；导出的版本化 JSON 可用于跨设备迁移。导入先预览，再选择合并或替换；替换前保留一份可恢复的本地备份。
+- 导出包含学习记录、阅读进度和应用设置，不包含文章正文或 WebDAV 密码。重复合并相同记录不会重复累计学习时间。
+- 网页下载 JSON 文件；Android 使用系统文件选择导入，通过系统分享面板导出到用户选择的目标。
+- 仅原生安装版提供手动 WebDAV 同步。填写已有的 HTTPS WebDAV 目录、用户名与密码；应用在目录内使用固定文件 `french-reading-progress.json`，不自动创建目录。服务需支持强 ETag 和条件写入以避免设备互相覆盖。
+- 同步会合并学习记录，保留本机语言等设置；URL 和用户名可记住，密码仅在当前会话中使用，不进入导出文件。
+- 本阶段没有账号、付费、官方云服务或常驻后台同步。卸载/清除本机数据会删除本地副本，请先导出或完成同步。
 
 ## 选中文本翻译
 

@@ -8,8 +8,8 @@ import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { resolveArticleById } from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
-import { useVisibleDuration } from '../lib/time';
-import { appendSession } from '../lib/storage';
+import { useReadingProgress } from '../features/reading/useReadingProgress';
+import { useReadingSession } from '../features/reading/useReadingSession';
 import ErrorState from '../components/ErrorState';
 import GlossaryText from '../components/GlossaryText';
 import LevelBadge from '../components/LevelBadge';
@@ -97,21 +97,8 @@ function ArticleReader({ article }: { article: Article }) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const lastTermButtonRef = useRef<HTMLButtonElement | null>(null);
   const translationRequestRef = useRef(0);
-  const { getElapsedMs } = useVisibleDuration(true);
-  const startedAtRef = useRef(new Date().toISOString());
-
-  useEffect(() => {
-    return () => {
-      const durationMs = getElapsedMs();
-      if (durationMs >= 1000) {
-        appendSession('reading-sessions', {
-          articleId: article.id,
-          startedAt: startedAtRef.current,
-          durationMs,
-        });
-      }
-    };
-  }, [article.id, getElapsedMs]);
+  useReadingSession(article.id);
+  useReadingProgress(article.id);
 
   useEffect(() => {
     const handleMouseUp = () => {

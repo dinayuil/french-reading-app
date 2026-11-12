@@ -105,6 +105,8 @@ function PracticeRunner({ article }: { article: Article }) {
   );
   const [showZh, setShowZh] = useState(false);
   const [selection, setSelection] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState(false);
+  const [markError, setMarkError] = useState(false);
   const [panel, setPanel] = useState<PanelState>(null);
   const [translationStatus, setTranslationStatus] = useState<TranslationStatus>({
     kind: 'idle',
@@ -194,14 +196,30 @@ function PracticeRunner({ article }: { article: Article }) {
 
   const handleMark = () => {
     if (!selection) return;
-    markWord(selection);
+
+    setMarkError(false);
+    try {
+      markWord(selection);
+    } catch {
+      setMarkError(true);
+      return;
+    }
+
     window.getSelection()?.removeAllRanges();
     setSelection(null);
   };
 
   const handleSubmit = () => {
+    setSubmitError(false);
+    try {
+      submit(getElapsedMs());
+    } catch {
+      setSubmitError(true);
+      return;
+    }
+
     translationRequestRef.current += 1;
-    submit(getElapsedMs());
+    setMarkError(false);
     setSelection(null);
   };
 
@@ -412,6 +430,14 @@ function PracticeRunner({ article }: { article: Article }) {
             role="toolbar"
             aria-label={t('practice.markAria')}
           >
+            {markError && (
+              <p
+                className="practice-save-error practice-save-error--toolbar"
+                role="alert"
+              >
+                {t('practice.saveErrorMark')}
+              </p>
+            )}
             <button
               type="button"
               className="selection-toolbar__button"
@@ -614,6 +640,11 @@ function PracticeRunner({ article }: { article: Article }) {
             <p className="practice-submit__hint">
               {t('practice.submitHint')}
             </p>
+            {submitError && (
+              <p className="practice-save-error" role="alert">
+                {t('practice.saveErrorSubmit')}
+              </p>
+            )}
           </div>
         )}
 

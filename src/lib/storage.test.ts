@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readJSON, writeJSON, appendSession } from './storage';
+import { readJSON, writeJSON, writeJSONStrict, appendSession } from './storage';
 
 const PREFIX = 'frp:';
 
@@ -43,6 +43,15 @@ describe('storage helpers', () => {
       `${PREFIX}list`,
       JSON.stringify([1, 2, 3]),
     );
+  });
+
+  it('throws from the strict writer when storage rejects the write', () => {
+    vi.mocked(localStorage.setItem).mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+
+    expect(() => writeJSONStrict('strict', { a: 1 })).toThrow('quota exceeded');
+    expect(() => writeJSON('lenient', { a: 1 })).not.toThrow();
   });
 
   it('appends to the end of an existing array', () => {

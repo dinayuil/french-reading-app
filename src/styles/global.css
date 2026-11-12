@@ -170,6 +170,39 @@ a:focus-visible {
   text-decoration: none;
 }
 
+/* Keep the brand, language switch and four nav entries from stacking into
+   three rows on narrow phones. */
+@media (max-width: 480px) {
+  .top-bar__inner {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: var(--space-3);
+    row-gap: var(--space-2);
+    align-items: center;
+  }
+
+  .top-bar__actions {
+    display: contents;
+  }
+
+  .wordmark {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .language-switch {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .top-bar__nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+}
+
 .site-footer {
   margin-top: auto;
   padding-block: var(--space-6);
