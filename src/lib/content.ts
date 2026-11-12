@@ -4,9 +4,9 @@ import type {
   ArticleParagraph,
   ArticleTranslation,
   CefrLevel,
+  DayIndex,
   GlossaryEntry,
   Manifest,
-  MonthIndex,
   Question,
 } from '../types/content';
 
@@ -27,7 +27,7 @@ export class ContentLoadError extends Error {
 }
 
 let manifestCache: Manifest | undefined;
-const monthCache = new Map<string, MonthIndex>();
+const dayCache = new Map<string, DayIndex>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -45,6 +45,51 @@ function requireNonEmptyString(
   const value = record[key];
   if (typeof value !== 'string' || value.trim() === '') {
     invalid(path, 'expected a non-empty string');
+  }
+  return value;
+}
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function isValidCalendarDate(value: string): boolean {
+  const match = ISO_DATE.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1) {
+    return false;
+  }
+
+  const leapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const monthLengths = [
+    31,
+    leapYear ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ];
+  return day <= monthLengths[month - 1];
+}
+
+function requireCalendarDate(
+  record: Record<string, unknown>,
+  key: string,
+  path: string,
+): string {
+  const value = requireNonEmptyString(record, key, path);
+  if (!isValidCalendarDate(value)) {
+    invalid(path, 'expected a valid YYYY-MM-DD calendar date');
   }
   return value;
 }
@@ -182,7 +227,7 @@ function assertArticleIndexEntry(
   requireNonEmptyString(value, 'title', `${path}.title`);
   requireCefrLevel(value, `${path}.level`);
   requireNonEmptyString(value, 'theme', `${path}.theme`);
-  requireNonEmptyString(value, 'date', `${path}.date`);
+  requireCalendarDate(value, 'date', `${path}.date`);
   requireNonEmptyString(value, 'summary', `${path}.summary`);
 
   const articlePath = requireNonEmptyString(value, 'path', `${path}.path`);
@@ -429,44 +474,74 @@ export async function loadManifest(): Promise<Manifest> {
   }
 
   const value = await fetchJson<unknown>('manifest.json');
-  if (
-    !isRecord(value) ||
-    !Array.isArray(value.months) ||
-    !value.months.every((month) => typeof month === 'string')
-  ) {
-    invalid('manifest.months', 'expected an array of strings');
+  if (!isRecord(value) || !Array.isArray(value.days)) {
+    invalid('manifest.days', 'expected an array of YYYY-MM-DD dates');
   }
+  if (value.months !== undefined) {
+    invalid('manifest.months', 'manifest must use days instead of months');
+  }
+  const seenDays = new Set<string>();
+  value.days.forEach((day, position) => {
+    if (typeof day !== 'string' || !isValidCalendarDate(day)) {
+      invalid(
+        `manifest.days[${position}]`,
+        'expected a valid YYYY-MM-DD calendar date',
+      );
+    }
+    if (seenDays.has(day)) {
+      invalid(`manifest.days[${position}]`, `duplicate day "${day}"`);
+    }
+    seenDays.add(day);
+  });
 
-  manifestCache = { months: value.months as string[] };
+  manifestCache = { days: value.days as string[] };
   return manifestCache;
 }
 
-export async function loadMonth(month: string): Promise<MonthIndex> {
-  const cached = monthCache.get(month);
+export async function loadDay(date: string): Promise<DayIndex> {
+  const cached = dayCache.get(date);
   if (cached) {
     return cached;
   }
 
-  const value = await fetchJson<unknown>(`months/${month}.json`);
-  if (!isRecord(value)) {
-    invalid(`months/${month}`, 'expected an object');
+  const path = `days/${date}.json`;
+  if (!isValidCalendarDate(date)) {
+    invalid(path, 'expected a valid YYYY-MM-DD calendar date');
   }
-  if (typeof value.month !== 'string' || value.month.trim() === '') {
-    invalid('month', 'expected a non-empty string');
+
+  const value = await fetchJson<unknown>(path);
+  if (!isRecord(value)) {
+    invalid(path, 'expected an object');
+  }
+  if (typeof value.date !== 'string' || !isValidCalendarDate(value.date)) {
+    invalid('date', 'expected a valid YYYY-MM-DD calendar date');
+  }
+  if (value.date !== date) {
+    invalid(
+      'date',
+      `expected "${value.date}" to match the requested day "${date}"`,
+    );
   }
   const articles = value.articles;
   if (!Array.isArray(articles)) {
     invalid('articles', 'expected an array');
   }
   articles.forEach((entry, entryIndex) => {
-    assertArticleIndexEntry(entry, `articles[${entryIndex}]`);
+    const entryPath = `articles[${entryIndex}]`;
+    assertArticleIndexEntry(entry, entryPath);
+    if (entry.date !== value.date) {
+      invalid(
+        `${entryPath}.date`,
+        `expected "${entry.date}" to match the day index date "${value.date}"`,
+      );
+    }
   });
 
-  const result: MonthIndex = {
-    month: value.month,
-    articles: articles as MonthIndex['articles'],
+  const result: DayIndex = {
+    date: value.date,
+    articles: articles as DayIndex['articles'],
   };
-  monthCache.set(month, result);
+  dayCache.set(date, result);
   return result;
 }
 
@@ -476,12 +551,54 @@ export async function loadArticle(path: string): Promise<Article> {
   return value;
 }
 
-export async function resolveArticleById(id: string): Promise<Article> {
-  const manifest = await loadManifest();
+function dateHintFromId(id: string): string | undefined {
+  const match = /^(\d{4}-\d{2}-\d{2})-/.exec(id);
+  if (!match) {
+    return undefined;
+  }
+  return isValidCalendarDate(match[1]) ? match[1] : undefined;
+}
 
-  for (const month of manifest.months) {
-    const index = await loadMonth(month);
+function findCachedEntry(id: string): ArticleIndexEntry | undefined {
+  for (const index of dayCache.values()) {
     const entry = index.articles.find((article) => article.id === id);
+    if (entry) {
+      return entry;
+    }
+  }
+  return undefined;
+}
+
+async function findEntryInDay(
+  day: string,
+  id: string,
+): Promise<ArticleIndexEntry | undefined> {
+  const index = await loadDay(day);
+  return index.articles.find((entry) => entry.id === id);
+}
+
+export async function resolveArticleById(id: string): Promise<Article> {
+  const cachedEntry = findCachedEntry(id);
+  if (cachedEntry) {
+    return loadArticle(cachedEntry.path);
+  }
+
+  const manifest = await loadManifest();
+  const hint = dateHintFromId(id);
+  const hintedDay = hint && manifest.days.includes(hint) ? hint : undefined;
+
+  if (hintedDay) {
+    const entry = await findEntryInDay(hintedDay, id);
+    if (entry) {
+      return loadArticle(entry.path);
+    }
+  }
+
+  for (const day of manifest.days) {
+    if (day === hintedDay) {
+      continue;
+    }
+    const entry = await findEntryInDay(day, id);
     if (entry) {
       return loadArticle(entry.path);
     }

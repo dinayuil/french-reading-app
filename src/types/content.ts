@@ -11,11 +11,11 @@ export interface ArticleIndexEntry {
 }
 
 export interface Manifest {
-  months: string[];
+  days: string[];
 }
 
-export interface MonthIndex {
-  month: string;
+export interface DayIndex {
+  date: string;
   articles: ArticleIndexEntry[];
 }
 

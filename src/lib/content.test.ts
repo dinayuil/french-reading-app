@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { cwd } from 'node:process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Article, ArticleIndexEntry } from '../types/content';
+import type {
+  Article,
+  ArticleIndexEntry,
+  DayIndex,
+} from '../types/content';
 
 const articlePath = 'articles/2026-11-09-tour-eiffel.json';
 
@@ -14,6 +18,19 @@ const indexEntry: ArticleIndexEntry = {
   date: '2026-11-09',
   summary: 'Un article de test sur la tour Eiffel.',
   path: articlePath,
+};
+
+const dayPath = 'days/2026-11-09.json';
+
+const dayIndex: DayIndex = {
+  date: '2026-11-09',
+  articles: [indexEntry],
+};
+
+const undatedEntry: ArticleIndexEntry = {
+  ...indexEntry,
+  id: 'tour-eiffel',
+  path: 'articles/tour-eiffel.json',
 };
 
 const validArticle: Article = {
@@ -130,6 +147,20 @@ async function expectArticleValidationError(
   expect((error as Error).message).toContain(expectedPath);
 }
 
+async function expectDayValidationError(
+  body: unknown,
+  expectedPath: string,
+  date = '2026-11-09',
+) {
+  stubFetch({ [`/data/days/${date}.json`]: { body } });
+  const { loadDay, ContentValidationError } = await loadContentModule();
+
+  const error: unknown = await loadDay(date).catch((e: unknown) => e);
+
+  expect(error).toBeInstanceOf(ContentValidationError);
+  expect((error as Error).message).toContain(expectedPath);
+}
+
 async function expectInvalidAnswerIndex(answerIndex: number) {
   const payload = cloneArticlePayload();
   const questions = payload.questions as Array<Record<string, unknown>>;
@@ -149,27 +180,139 @@ afterEach(() => {
 describe('content loader', () => {
   it('loads and parses the manifest', async () => {
     const fetchMock = stubFetch({
-      '/data/manifest.json': { body: { months: ['2026-11'] } },
+      '/data/manifest.json': { body: { days: ['2026-11-09'] } },
     });
     const { loadManifest } = await loadContentModule();
 
-    await expect(loadManifest()).resolves.toEqual({ months: ['2026-11'] });
+    await expect(loadManifest()).resolves.toEqual({ days: ['2026-11-09'] });
     expect(fetchMock).toHaveBeenCalledWith('/data/manifest.json');
   });
 
-  it('loads and parses a month index', async () => {
-    const fetchMock = stubFetch({
-      '/data/months/2026-11.json': {
-        body: { month: '2026-11', articles: [indexEntry] },
+  it('rejects a manifest that only provides months', async () => {
+    stubFetch({
+      '/data/manifest.json': { body: { months: ['2026-11'] } },
+    });
+    const { loadManifest, ContentValidationError } = await loadContentModule();
+
+    const error: unknown = await loadManifest().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ContentValidationError);
+    expect((error as Error).message).toContain('manifest.days');
+  });
+
+  it('rejects a manifest that still mixes days with months', async () => {
+    stubFetch({
+      '/data/manifest.json': {
+        body: { days: ['2026-11-09'], months: ['2026-11'] },
       },
     });
-    const { loadMonth } = await loadContentModule();
+    const { loadManifest, ContentValidationError } = await loadContentModule();
 
-    await expect(loadMonth('2026-11')).resolves.toEqual({
-      month: '2026-11',
-      articles: [indexEntry],
+    const error: unknown = await loadManifest().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ContentValidationError);
+    expect((error as Error).message).toContain('manifest.months');
+  });
+
+  it('rejects duplicate manifest days', async () => {
+    stubFetch({
+      '/data/manifest.json': {
+        body: { days: ['2026-11-09', '2026-11-09'] },
+      },
     });
-    expect(fetchMock).toHaveBeenCalledWith('/data/months/2026-11.json');
+    const { loadManifest, ContentValidationError } = await loadContentModule();
+
+    const error: unknown = await loadManifest().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ContentValidationError);
+    expect((error as Error).message).toContain('manifest.days[1]');
+  });
+
+  it('rejects a manifest day that is not a valid calendar date', async () => {
+    stubFetch({
+      '/data/manifest.json': { body: { days: ['2026-02-30'] } },
+    });
+    const { loadManifest, ContentValidationError } = await loadContentModule();
+
+    const error: unknown = await loadManifest().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ContentValidationError);
+    expect((error as Error).message).toContain('manifest.days[0]');
+  });
+
+  it('loads and parses a day index', async () => {
+    const fetchMock = stubFetch({
+      [`/data/${dayPath}`]: { body: dayIndex },
+    });
+    const { loadDay } = await loadContentModule();
+
+    await expect(loadDay('2026-11-09')).resolves.toEqual(dayIndex);
+    expect(fetchMock).toHaveBeenCalledWith(`/data/${dayPath}`);
+  });
+
+  it('caches a day index after the first load', async () => {
+    const fetchMock = stubFetch({
+      [`/data/${dayPath}`]: { body: dayIndex },
+    });
+    const { loadDay } = await loadContentModule();
+
+    const first = await loadDay('2026-11-09');
+    const second = await loadDay('2026-11-09');
+
+    expect(second).toBe(first);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an invalid calendar date before fetching a day index', async () => {
+    const fetchMock = stubFetch({});
+    const { loadDay, ContentValidationError } = await loadContentModule();
+
+    const error: unknown = await loadDay('2026-02-30').catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ContentValidationError);
+    expect((error as Error).message).toContain('days/2026-02-30');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a day index whose date does not match the requested day', async () => {
+    await expectDayValidationError(
+      { date: '2026-11-10', articles: [indexEntry] },
+      'date',
+    );
+  });
+
+  it('rejects a day index with an invalid calendar date', async () => {
+    await expectDayValidationError({ date: '2026-02-30', articles: [] }, 'date');
+  });
+
+  it('rejects a day index entry whose date does not match the day', async () => {
+    await expectDayValidationError(
+      {
+        date: '2026-11-09',
+        articles: [{ ...indexEntry, date: '2026-11-10' }],
+      },
+      'articles[0].date',
+    );
+  });
+
+  it('rejects a day index entry with an invalid calendar date', async () => {
+    await expectDayValidationError(
+      {
+        date: '2026-11-09',
+        articles: [{ ...indexEntry, date: '2026-02-30' }],
+      },
+      'articles[0].date',
+    );
+  });
+
+  it('rejects a day entry whose path does not match its id', async () => {
+    await expectDayValidationError(
+      {
+        date: '2026-11-09',
+        articles: [{ ...indexEntry, path: 'articles/other.json' }],
+      },
+      'articles[0].path',
+    );
   });
 
   it('loads an article with source, adaptation and license metadata', async () => {
@@ -355,28 +498,94 @@ describe('content loader', () => {
     await expectArticleValidationError(payload, 'questions[0].options[1]');
   });
 
-  it('rejects a month entry whose path does not match its id', async () => {
-    stubFetch({
-      '/data/months/2026-11.json': {
-        body: {
-          month: '2026-11',
-          articles: [{ ...indexEntry, path: 'articles/other.json' }],
-        },
-      },
+  it('resolves an article by id through manifest, day and article files', async () => {
+    const fetchMock = stubFetch({
+      '/data/manifest.json': { body: { days: ['2026-11-09'] } },
+      [`/data/${dayPath}`]: { body: dayIndex },
+      [`/data/${articlePath}`]: { body: validArticle },
     });
-    const { loadMonth, ContentValidationError } = await loadContentModule();
+    const { resolveArticleById } = await loadContentModule();
 
-    const error: unknown = await loadMonth('2026-11').catch((e: unknown) => e);
+    await expect(
+      resolveArticleById('2026-11-09-tour-eiffel'),
+    ).resolves.toMatchObject({ id: '2026-11-09-tour-eiffel' });
 
-    expect(error).toBeInstanceOf(ContentValidationError);
-    expect((error as Error).message).toContain('articles[0].path');
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/data/manifest.json',
+      `/data/${dayPath}`,
+      `/data/${articlePath}`,
+    ]);
   });
 
-  it('resolves an article by id through manifest, month and article files', async () => {
+  it('resolves an article whose id has no date prefix', async () => {
+    const payload = cloneArticlePayload();
+    payload.id = 'tour-eiffel';
     const fetchMock = stubFetch({
-      '/data/manifest.json': { body: { months: ['2026-11'] } },
-      '/data/months/2026-11.json': {
-        body: { month: '2026-11', articles: [indexEntry] },
+      '/data/manifest.json': { body: { days: ['2026-11-09'] } },
+      [`/data/${dayPath}`]: {
+        body: { date: '2026-11-09', articles: [undatedEntry] },
+      },
+      '/data/articles/tour-eiffel.json': { body: payload },
+    });
+    const { resolveArticleById } = await loadContentModule();
+
+    await expect(resolveArticleById('tour-eiffel')).resolves.toMatchObject({
+      id: 'tour-eiffel',
+    });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/data/manifest.json',
+      `/data/${dayPath}`,
+      '/data/articles/tour-eiffel.json',
+    ]);
+  });
+
+  it('throws a load error when no day indexes the requested id', async () => {
+    stubFetch({
+      '/data/manifest.json': { body: { days: ['2026-11-09'] } },
+      [`/data/${dayPath}`]: { body: dayIndex },
+    });
+    const { resolveArticleById, ContentLoadError } = await loadContentModule();
+
+    await expect(resolveArticleById('inconnu')).rejects.toBeInstanceOf(
+      ContentLoadError,
+    );
+  });
+
+  it('loads the day hinted by a dated id before scanning other days', async () => {
+    const fetchMock = stubFetch({
+      '/data/manifest.json': { body: { days: ['2026-11-10', '2026-11-09'] } },
+      '/data/days/2026-11-10.json': {
+        body: { date: '2026-11-10', articles: [] },
+      },
+      [`/data/${dayPath}`]: { body: dayIndex },
+      [`/data/${articlePath}`]: { body: validArticle },
+    });
+    const { resolveArticleById } = await loadContentModule();
+
+    await expect(
+      resolveArticleById('2026-11-09-tour-eiffel'),
+    ).resolves.toMatchObject({ id: '2026-11-09-tour-eiffel' });
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/data/manifest.json',
+      `/data/${dayPath}`,
+      `/data/${articlePath}`,
+    ]);
+  });
+
+  it('falls back to other days without refetching the hinted day', async () => {
+    const fallbackDayPath = 'days/2026-11-10.json';
+    const fallbackEntry: ArticleIndexEntry = {
+      ...indexEntry,
+      date: '2026-11-10',
+    };
+    const fetchMock = stubFetch({
+      '/data/manifest.json': { body: { days: ['2026-11-10', '2026-11-09'] } },
+      [`/data/${dayPath}`]: {
+        body: { date: '2026-11-09', articles: [] },
+      },
+      [`/data/${fallbackDayPath}`]: {
+        body: { date: '2026-11-10', articles: [fallbackEntry] },
       },
       [`/data/${articlePath}`]: { body: validArticle },
     });
@@ -388,7 +597,60 @@ describe('content loader', () => {
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       '/data/manifest.json',
-      '/data/months/2026-11.json',
+      `/data/${dayPath}`,
+      `/data/${fallbackDayPath}`,
+      `/data/${articlePath}`,
+    ]);
+  });
+
+  it('scans undated ids in order and stops at the first matching day', async () => {
+    const payload = cloneArticlePayload();
+    payload.id = 'tour-eiffel';
+    const secondDayPath = 'days/2026-11-10.json';
+    const secondEntry: ArticleIndexEntry = {
+      ...undatedEntry,
+      date: '2026-11-10',
+    };
+    const fetchMock = stubFetch({
+      '/data/manifest.json': {
+        body: { days: ['2026-11-09', '2026-11-10', '2026-11-11'] },
+      },
+      '/data/days/2026-11-09.json': {
+        body: { date: '2026-11-09', articles: [] },
+      },
+      [`/data/${secondDayPath}`]: {
+        body: { date: '2026-11-10', articles: [secondEntry] },
+      },
+      '/data/articles/tour-eiffel.json': { body: payload },
+    });
+    const { resolveArticleById } = await loadContentModule();
+
+    await expect(resolveArticleById('tour-eiffel')).resolves.toMatchObject({
+      id: 'tour-eiffel',
+    });
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/data/manifest.json',
+      '/data/days/2026-11-09.json',
+      `/data/${secondDayPath}`,
+      '/data/articles/tour-eiffel.json',
+    ]);
+  });
+
+  it('serves a cached day entry without reloading the manifest', async () => {
+    const fetchMock = stubFetch({
+      [`/data/${dayPath}`]: { body: dayIndex },
+      [`/data/${articlePath}`]: { body: validArticle },
+    });
+    const { loadDay, resolveArticleById } = await loadContentModule();
+
+    await loadDay('2026-11-09');
+    await expect(
+      resolveArticleById('2026-11-09-tour-eiffel'),
+    ).resolves.toMatchObject({ id: '2026-11-09-tour-eiffel' });
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      `/data/${dayPath}`,
       `/data/${articlePath}`,
     ]);
   });
@@ -404,7 +666,7 @@ describe('content loader', () => {
 
   it('builds fetch paths from the Vite base URL', async () => {
     const fetchMock = stubFetch({
-      '/data/manifest.json': { body: { months: ['2026-11'] } },
+      '/data/manifest.json': { body: { days: ['2026-11-09'] } },
     });
     const { loadManifest } = await loadContentModule();
 
@@ -421,7 +683,7 @@ describe('content loader', () => {
     );
     const fetchMock = stubFetch({
       'https://content.example/base/manifest.json': {
-        body: { months: ['2026-11'] },
+        body: { days: ['2026-11-09'] },
       },
     });
     const { loadManifest } = await loadContentModule();
