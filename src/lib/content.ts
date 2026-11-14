@@ -1,5 +1,6 @@
 import type {
   Article,
+  ArticleImage,
   ArticleIndexEntry,
   ArticleParagraph,
   ArticleTranslation,
@@ -11,6 +12,20 @@ import type {
 } from '../types/content';
 
 const CEFR_LEVELS: readonly CefrLevel[] = ['A2', 'B1', 'B2'];
+
+const IMAGE_PATH = /^images\/[a-z0-9-]+-[a-f0-9]{12}\.(jpg|png)$/;
+const SHA256_PATTERN = /^[a-f0-9]{64}$/;
+const IMAGE_LICENSE_URLS = new Map<string, string>([
+  ['CC0 1.0', 'https://creativecommons.org/publicdomain/zero/1.0/'],
+  ['CC BY 2.0', 'https://creativecommons.org/licenses/by/2.0/'],
+  ['CC BY 2.5', 'https://creativecommons.org/licenses/by/2.5/'],
+  ['CC BY 3.0', 'https://creativecommons.org/licenses/by/3.0/'],
+  ['CC BY 4.0', 'https://creativecommons.org/licenses/by/4.0/'],
+  ['CC BY-SA 2.0', 'https://creativecommons.org/licenses/by-sa/2.0/'],
+  ['CC BY-SA 2.5', 'https://creativecommons.org/licenses/by-sa/2.5/'],
+  ['CC BY-SA 3.0', 'https://creativecommons.org/licenses/by-sa/3.0/'],
+  ['CC BY-SA 4.0', 'https://creativecommons.org/licenses/by-sa/4.0/'],
+]);
 
 export class ContentValidationError extends Error {
   constructor(message: string) {
@@ -155,6 +170,51 @@ function assertTranslationMap(
   });
 }
 
+function assertQuestionTexts(
+  value: unknown,
+  expectedIds: string[],
+  path: string,
+): void {
+  if (!isRecord(value)) {
+    invalid(path, 'expected an object');
+  }
+
+  const expected = new Set(expectedIds);
+  const actual = Object.keys(value);
+  if (
+    actual.length !== expected.size ||
+    actual.some((key) => !expected.has(key))
+  ) {
+    invalid(path, 'expected keys to match the article question ids');
+  }
+
+  expectedIds.forEach((id) => {
+    const entry = value[id];
+    const entryPath = `${path}[${JSON.stringify(id)}]`;
+    if (!isRecord(entry)) {
+      invalid(entryPath, 'expected an object');
+    }
+
+    requireNonEmptyString(entry, 'prompt', `${entryPath}.prompt`);
+
+    const options = entry.options;
+    if (!Array.isArray(options) || options.length !== 4) {
+      invalid(`${entryPath}.options`, 'expected an array of 4 strings');
+    }
+    options.forEach((option, optionIndex) => {
+      if (typeof option !== 'string' || option.trim() === '') {
+        invalid(
+          `${entryPath}.options[${optionIndex}]`,
+          'expected a non-empty string',
+        );
+      }
+    });
+    if (new Set(options).size !== options.length) {
+      invalid(`${entryPath}.options`, 'expected unique options');
+    }
+  });
+}
+
 function assertTranslation(
   value: unknown,
   path: string,
@@ -213,6 +273,13 @@ function assertTranslation(
     `${path}.questions`,
     'question ids',
   );
+  if (value.questionTexts !== undefined) {
+    assertQuestionTexts(
+      value.questionTexts,
+      source.questions.map((question) => question.id),
+      `${path}.questionTexts`,
+    );
+  }
 }
 
 function assertArticleIndexEntry(
@@ -237,6 +304,141 @@ function assertArticleIndexEntry(
       `expected "articles/${id}.json" for article id "${id}"`,
     );
   }
+}
+
+function requireIntegerInRange(
+  record: Record<string, unknown>,
+  key: string,
+  path: string,
+  min: number,
+  max: number,
+): number {
+  const value = record[key];
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < min ||
+    value > max
+  ) {
+    invalid(path, `expected an integer between ${min} and ${max}`);
+  }
+  return value;
+}
+
+function assertCommonsFilePageUrl(value: string, path: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return invalid(path, 'expected an HTTPS Commons file page URL');
+  }
+
+  if (
+    url.protocol !== 'https:' ||
+    url.hostname !== 'commons.wikimedia.org' ||
+    url.port !== '' ||
+    url.username !== '' ||
+    url.password !== ''
+  ) {
+    invalid(path, 'expected an HTTPS Commons file page URL');
+  }
+  if (url.hash !== '') {
+    invalid(path, 'expected a Commons file page URL without a fragment');
+  }
+  if (
+    !url.pathname.startsWith('/wiki/File:') ||
+    url.pathname.length <= '/wiki/File:'.length
+  ) {
+    invalid(path, 'expected a Commons File: page URL');
+  }
+  if (url.search !== '') {
+    const params = Array.from(url.searchParams.entries());
+    if (
+      params.length !== 1 ||
+      params[0][0] !== 'oldid' ||
+      !/^[1-9]\d*$/.test(params[0][1])
+    ) {
+      invalid(path, 'expected only an optional numeric oldid parameter');
+    }
+  }
+}
+
+function assertArticleImage(
+  value: unknown,
+  path: string,
+): asserts value is ArticleImage {
+  if (!isRecord(value)) {
+    invalid(path, 'expected an object');
+  }
+
+  const imagePath = requireNonEmptyString(value, 'path', `${path}.path`);
+  if (!IMAGE_PATH.test(imagePath)) {
+    invalid(
+      `${path}.path`,
+      'expected a relative images/ path with a 12-character hash suffix',
+    );
+  }
+
+  requireNonEmptyString(value, 'alt', `${path}.alt`);
+  const author = requireNonEmptyString(value, 'author', `${path}.author`);
+  if (author.trim().length > 120) {
+    invalid(`${path}.author`, 'expected at most 120 characters');
+  }
+
+  const sourceUrl = requireNonEmptyString(
+    value,
+    'sourceUrl',
+    `${path}.sourceUrl`,
+  );
+  assertCommonsFilePageUrl(sourceUrl, `${path}.sourceUrl`);
+
+  const license = requireNonEmptyString(value, 'license', `${path}.license`);
+  const expectedLicenseUrl = IMAGE_LICENSE_URLS.get(license);
+  if (!expectedLicenseUrl) {
+    invalid(`${path}.license`, 'expected a supported Creative Commons licence');
+  }
+  const licenseUrl = requireNonEmptyString(
+    value,
+    'licenseUrl',
+    `${path}.licenseUrl`,
+  );
+  if (licenseUrl !== expectedLicenseUrl) {
+    invalid(
+      `${path}.licenseUrl`,
+      `expected "${expectedLicenseUrl}" for licence "${license}"`,
+    );
+  }
+
+  requireNonEmptyString(value, 'changes', `${path}.changes`);
+  requireIntegerInRange(value, 'width', `${path}.width`, 1, 1600);
+  requireIntegerInRange(value, 'height', `${path}.height`, 1, 1600);
+  requireIntegerInRange(
+    value,
+    'byteLength',
+    `${path}.byteLength`,
+    1,
+    1_048_576,
+  );
+
+  const sha256 = requireNonEmptyString(value, 'sha256', `${path}.sha256`);
+  if (!SHA256_PATTERN.test(sha256)) {
+    invalid(`${path}.sha256`, 'expected 64 lowercase hexadecimal characters');
+  }
+  const pathHash = /-([a-f0-9]{12})\.(?:jpg|png)$/.exec(imagePath)?.[1];
+  if (pathHash !== sha256.slice(0, 12)) {
+    invalid(`${path}.path`, 'expected the filename hash to match sha256');
+  }
+
+  const fileRevisionId = requireNonEmptyString(
+    value,
+    'fileRevisionId',
+    `${path}.fileRevisionId`,
+  );
+  if (!/^[1-9]\d*$/.test(fileRevisionId)) {
+    invalid(`${path}.fileRevisionId`, 'expected a positive integer string');
+  }
+
+  requireCalendarDate(value, 'retrievedAt', `${path}.retrievedAt`);
 }
 
 function assertArticle(value: unknown): asserts value is Article {
@@ -344,7 +546,18 @@ function assertArticle(value: unknown): asserts value is Article {
     }
 
     requireNonEmptyString(question, 'evidence', `${questionPath}.evidence`);
+    if (question.explanation !== undefined) {
+      requireNonEmptyString(
+        question,
+        'explanation',
+        `${questionPath}.explanation`,
+      );
+    }
   });
+
+  if (value.image !== undefined) {
+    assertArticleImage(value.image, 'image');
+  }
 
   const translations = value.translations;
   if (!isRecord(translations)) {
@@ -384,6 +597,21 @@ function assertArticle(value: unknown): asserts value is Article {
     )
   ) {
     invalid('source.authors', 'expected a non-empty array of strings');
+  }
+  if (source.translators !== undefined) {
+    if (
+      !Array.isArray(source.translators) ||
+      source.translators.length === 0 ||
+      source.translators.some(
+        (translator) =>
+          typeof translator !== 'string' || translator.trim() === '',
+      )
+    ) {
+      invalid(
+        'source.translators',
+        'expected a non-empty array of strings',
+      );
+    }
   }
   const sourceLicense = requireNonEmptyString(
     source,
@@ -443,6 +671,16 @@ function contentBaseUrl(): string {
       : `${import.meta.env.BASE_URL}data/`;
 
   return base.endsWith('/') ? base : `${base}/`;
+}
+
+export function resolveImageUrl(path: string): string {
+  if (!IMAGE_PATH.test(path)) {
+    invalid(
+      'image.path',
+      'expected a relative images/ path with a 12-character hash suffix',
+    );
+  }
+  return `${contentBaseUrl()}${path}`;
 }
 
 async function fetchJson<T>(relativePath: string): Promise<T> {

@@ -193,6 +193,15 @@
   color: var(--color-accent);
 }
 
+.practice-question__text-zh {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-muted);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
 .practice-question__options {
   display: grid;
   gap: var(--space-2);
@@ -250,6 +259,18 @@
   line-height: 1.5;
 }
 
+.practice-option__text-fr {
+  display: block;
+}
+
+.practice-option__text-zh {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--color-muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
 /* Feedback after submit */
 .practice-feedback {
   margin-top: var(--space-3);
@@ -274,6 +295,11 @@
 .practice-feedback__your-answer {
   color: var(--color-muted);
   margin-bottom: var(--space-2);
+}
+
+.practice-feedback__your-answer-zh {
+  margin-left: var(--space-2);
+  color: var(--color-muted);
 }
 
 .practice-feedback__explanation {

@@ -13,10 +13,11 @@ export default function SourceAttribution({
   article,
 }: SourceAttributionProps) {
   const publishedAt = article.source.publishedAt ?? article.source.retrievedAt;
+  const translators = article.source.translators ?? [];
 
   return (
     <div className="global-voices-attribution">
-      <p>
+      <p lang="fr">
         Cette histoire de {article.source.authors.join(', ')} est parue à
         l'origine sur {article.source.site} le {publishedAt} :{' '}
         <a
@@ -35,6 +36,9 @@ export default function SourceAttribution({
           {article.license.name}
         </a>
         .
+        {translators.length > 0 && (
+          <>{' '}Traduction française de {translators.join(', ')}.</>
+        )}
       </p>
     </div>
   );

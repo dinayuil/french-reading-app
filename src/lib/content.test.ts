@@ -4,6 +4,7 @@ import { cwd } from 'node:process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   Article,
+  ArticleImage,
   ArticleIndexEntry,
   DayIndex,
 } from '../types/content';
@@ -93,6 +94,23 @@ const validArticle: Article = {
   },
 };
 
+const validImage: ArticleImage = {
+  path: 'images/2026-11-09-tour-eiffel-0123456789ab.jpg',
+  alt: 'La tour Eiffel vue depuis le Champ-de-Mars',
+  author: 'Jane Doe',
+  sourceUrl:
+    'https://commons.wikimedia.org/wiki/File:Tour_Eiffel_Champ_de_Mars.jpg?oldid=123456789',
+  license: 'CC BY-SA 4.0',
+  licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+  changes: 'Image redimensionnée à 1200 px de large.',
+  width: 1200,
+  height: 800,
+  byteLength: 345_678,
+  sha256: '0123456789abcdef'.repeat(4),
+  fileRevisionId: '123456789',
+  retrievedAt: '2026-11-14',
+};
+
 interface MockRoute {
   status?: number;
   body?: unknown;
@@ -134,6 +152,15 @@ function translationPayload(payload: Record<string, unknown>) {
   return translations.zh as Record<string, unknown>;
 }
 
+function validQuestionTexts() {
+  return {
+    q1: {
+      prompt: 'Où se trouve la tour Eiffel ?',
+      options: ['À Paris', 'À Lyon', 'À Nice', 'À Lille'],
+    },
+  };
+}
+
 async function expectArticleValidationError(
   payload: unknown,
   expectedPath: string,
@@ -170,6 +197,22 @@ async function expectInvalidAnswerIndex(answerIndex: number) {
     payload,
     'questions[0].answerIndex',
   );
+}
+
+function cloneImagePayload() {
+  return JSON.parse(JSON.stringify(validImage)) as Record<string, unknown>;
+}
+
+async function expectImageValidationError(
+  mutate: (image: Record<string, unknown>) => void,
+  expectedPath: string,
+) {
+  const payload = cloneArticlePayload();
+  const image = cloneImagePayload();
+  mutate(image);
+  payload.image = image;
+
+  await expectArticleValidationError(payload, expectedPath);
 }
 
 afterEach(() => {
@@ -323,6 +366,7 @@ describe('content loader', () => {
 
     expect(article.id).toBe('2026-11-09-tour-eiffel');
     expect(article.source.authors).toEqual(['Contributeurs de Wikipédia']);
+    expect(article.source.translators).toBeUndefined();
     expect(article.source.revisionId).toBe('241075004');
     expect(article.adaptation.date).toBe('2026-11-09');
     expect(article.license).toEqual({
@@ -342,6 +386,150 @@ describe('content loader', () => {
     expect(article.translations.zh.title).toBe('埃菲尔铁塔');
     expect(article.translations.zh.glossary['situé']).toBe('位于，坐落在');
     expect(article.translations.zh.questions['q1']).toContain('巴黎');
+  });
+
+  it('loads a French explanation and complete Chinese question texts', async () => {
+    const payload = cloneArticlePayload();
+    const questions = payload.questions as Array<Record<string, unknown>>;
+    questions[0].explanation =
+      'Le texte indique que la tour Eiffel se trouve à Paris.';
+    translationPayload(payload).questionTexts = validQuestionTexts();
+    stubFetch({ [`/data/${articlePath}`]: { body: payload } });
+    const { loadArticle } = await loadContentModule();
+
+    const article = await loadArticle(articlePath);
+
+    expect(article.questions[0].explanation).toBe(
+      'Le texte indique que la tour Eiffel se trouve à Paris.',
+    );
+    expect(article.translations.zh.questionTexts).toEqual(
+      validQuestionTexts(),
+    );
+  });
+
+  it('accepts a legacy article without explanation and question texts', async () => {
+    stubFetch({ [`/data/${articlePath}`]: { body: validArticle } });
+    const { loadArticle } = await loadContentModule();
+
+    const article = await loadArticle(articlePath);
+
+    expect(article.questions[0].explanation).toBeUndefined();
+    expect(article.translations.zh.questionTexts).toBeUndefined();
+  });
+
+  it('rejects an empty question explanation', async () => {
+    const payload = cloneArticlePayload();
+    const questions = payload.questions as Array<Record<string, unknown>>;
+    questions[0].explanation = '   ';
+
+    await expectArticleValidationError(
+      payload,
+      'questions[0].explanation',
+    );
+  });
+
+  it('rejects a non-string question explanation', async () => {
+    const payload = cloneArticlePayload();
+    const questions = payload.questions as Array<Record<string, unknown>>;
+    questions[0].explanation = 42;
+
+    await expectArticleValidationError(
+      payload,
+      'questions[0].explanation',
+    );
+  });
+
+  it('rejects question texts that omit a question id', async () => {
+    const payload = cloneArticlePayload();
+    translationPayload(payload).questionTexts = {};
+
+    await expectArticleValidationError(
+      payload,
+      'translations.zh.questionTexts',
+    );
+  });
+
+  it('rejects question texts with an extra question id', async () => {
+    const payload = cloneArticlePayload();
+    translationPayload(payload).questionTexts = {
+      ...validQuestionTexts(),
+      q2: validQuestionTexts().q1,
+    };
+
+    await expectArticleValidationError(
+      payload,
+      'translations.zh.questionTexts',
+    );
+  });
+
+  it('rejects question texts with an empty prompt', async () => {
+    const payload = cloneArticlePayload();
+    const questionTexts = validQuestionTexts();
+    questionTexts.q1.prompt = '';
+    translationPayload(payload).questionTexts = questionTexts;
+
+    await expectArticleValidationError(
+      payload,
+      'translations.zh.questionTexts["q1"].prompt',
+    );
+  });
+
+  it('rejects translated options that are not exactly four', async () => {
+    const payload = cloneArticlePayload();
+    const questionTexts = validQuestionTexts();
+    questionTexts.q1.options = ['À Paris', 'À Lyon', 'À Nice'];
+    translationPayload(payload).questionTexts = questionTexts;
+
+    await expectArticleValidationError(
+      payload,
+      'translations.zh.questionTexts["q1"].options',
+    );
+  });
+
+  it('rejects duplicate translated options', async () => {
+    const payload = cloneArticlePayload();
+    const questionTexts = validQuestionTexts();
+    questionTexts.q1.options = ['À Paris', 'À Paris', 'À Nice', 'À Lille'];
+    translationPayload(payload).questionTexts = questionTexts;
+
+    await expectArticleValidationError(
+      payload,
+      'translations.zh.questionTexts["q1"].options',
+    );
+  });
+
+  it('rejects an empty translated option', async () => {
+    const payload = cloneArticlePayload();
+    const questionTexts = validQuestionTexts();
+    questionTexts.q1.options[2] = ' ';
+    translationPayload(payload).questionTexts = questionTexts;
+
+    await expectArticleValidationError(
+      payload,
+      'translations.zh.questionTexts["q1"].options[2]',
+    );
+  });
+
+  it('rejects a non-string translated option', async () => {
+    const payload = cloneArticlePayload();
+    const questionTexts = validQuestionTexts();
+    (questionTexts.q1.options as unknown[])[1] = 42;
+    translationPayload(payload).questionTexts = questionTexts;
+
+    await expectArticleValidationError(
+      payload,
+      'translations.zh.questionTexts["q1"].options[1]',
+    );
+  });
+
+  it('rejects question text entries that are not objects', async () => {
+    const payload = cloneArticlePayload();
+    translationPayload(payload).questionTexts = { q1: 'traduction' };
+
+    await expectArticleValidationError(
+      payload,
+      'translations.zh.questionTexts["q1"]',
+    );
   });
 
   it('rejects an article without translations.zh', async () => {
@@ -448,6 +636,113 @@ describe('content loader', () => {
     await expectArticleValidationError(payload, 'source.license');
   });
 
+  it('accepts a complete optional article image', async () => {
+    const payload = cloneArticlePayload();
+    payload.image = cloneImagePayload();
+    stubFetch({ [`/data/${articlePath}`]: { body: payload } });
+    const { loadArticle } = await loadContentModule();
+
+    const article = await loadArticle(articlePath);
+
+    expect(article.image).toEqual(validImage);
+  });
+
+  it('accepts an article without an image', async () => {
+    stubFetch({ [`/data/${articlePath}`]: { body: validArticle } });
+    const { loadArticle } = await loadContentModule();
+
+    const article = await loadArticle(articlePath);
+
+    expect(article.image).toBeUndefined();
+  });
+
+  it('rejects a null article image', async () => {
+    const payload = cloneArticlePayload();
+    payload.image = null;
+
+    await expectArticleValidationError(payload, 'image');
+  });
+
+  it('rejects an incomplete article image', async () => {
+    await expectImageValidationError((image) => {
+      delete image.alt;
+    }, 'image.alt');
+  });
+
+  it('rejects an image path outside images/', async () => {
+    await expectImageValidationError((image) => {
+      image.path = '../images/2026-11-09-tour-eiffel-0123456789ab.jpg';
+    }, 'image.path');
+  });
+
+  it('rejects an image path with a query parameter', async () => {
+    await expectImageValidationError((image) => {
+      image.path =
+        'images/2026-11-09-tour-eiffel-0123456789ab.jpg?download=1';
+    }, 'image.path');
+  });
+
+  it('rejects an image path whose hash suffix does not match sha256', async () => {
+    await expectImageValidationError((image) => {
+      image.path = 'images/2026-11-09-tour-eiffel-ffffffffffff.jpg';
+    }, 'image.path');
+  });
+
+  it('rejects an invalid image sha256', async () => {
+    await expectImageValidationError((image) => {
+      image.sha256 = '0123456789AB'.toLowerCase().repeat(4);
+    }, 'image.sha256');
+  });
+
+  it('rejects an image author longer than 120 characters', async () => {
+    await expectImageValidationError((image) => {
+      image.author = 'a'.repeat(121);
+    }, 'image.author');
+  });
+
+  it('rejects a source URL that is not a Commons file page', async () => {
+    await expectImageValidationError((image) => {
+      image.sourceUrl = 'https://example.com/wiki/File:Tour_Eiffel.jpg';
+    }, 'image.sourceUrl');
+  });
+
+  it('rejects an unsupported image license', async () => {
+    await expectImageValidationError((image) => {
+      image.license = 'CC BY-ND 4.0';
+      image.licenseUrl = 'https://creativecommons.org/licenses/by-nd/4.0/';
+    }, 'image.license');
+  });
+
+  it('rejects an image license URL that does not match the license', async () => {
+    await expectImageValidationError((image) => {
+      image.licenseUrl = 'https://creativecommons.org/licenses/by/4.0/';
+    }, 'image.licenseUrl');
+  });
+
+  it('rejects image dimensions above 1600 pixels', async () => {
+    await expectImageValidationError((image) => {
+      image.width = 1601;
+    }, 'image.width');
+  });
+
+  it('rejects an image byteLength outside the allowed range', async () => {
+    await expectImageValidationError((image) => {
+      image.byteLength = 0;
+    }, 'image.byteLength');
+  });
+
+  it('rejects an invalid image file revision id', async () => {
+    await expectImageValidationError((image) => {
+      image.fileRevisionId = '0';
+    }, 'image.fileRevisionId');
+  });
+
+  it('rejects an invalid image retrieval date', async () => {
+    await expectImageValidationError((image) => {
+      image.retrievedAt = '2026-02-30';
+    }, 'image.retrievedAt');
+  });
+
   it('accepts optional source publication metadata', async () => {
     const payload = cloneArticlePayload();
     const source = payload.source as Record<string, unknown>;
@@ -459,6 +754,50 @@ describe('content loader', () => {
     await expect(loadArticle(articlePath)).resolves.toMatchObject({
       source: { publishedAt: '2026-11-08', attributionPosition: 'top' },
     });
+  });
+
+  it('accepts optional source translators', async () => {
+    const payload = cloneArticlePayload();
+    const source = payload.source as Record<string, unknown>;
+    source.translators = ['Guillaume Cottin'];
+    stubFetch({ [`/data/${articlePath}`]: { body: payload } });
+    const { loadArticle } = await loadContentModule();
+
+    await expect(loadArticle(articlePath)).resolves.toMatchObject({
+      source: { translators: ['Guillaume Cottin'] },
+    });
+  });
+
+  it('rejects an empty source translators array', async () => {
+    const payload = cloneArticlePayload();
+    const source = payload.source as Record<string, unknown>;
+    source.translators = [];
+
+    await expectArticleValidationError(payload, 'source.translators');
+  });
+
+  it('rejects a source translators value that is not an array', async () => {
+    const payload = cloneArticlePayload();
+    const source = payload.source as Record<string, unknown>;
+    source.translators = 'Guillaume Cottin';
+
+    await expectArticleValidationError(payload, 'source.translators');
+  });
+
+  it('rejects an empty translator name', async () => {
+    const payload = cloneArticlePayload();
+    const source = payload.source as Record<string, unknown>;
+    source.translators = ['Guillaume Cottin', ' '];
+
+    await expectArticleValidationError(payload, 'source.translators');
+  });
+
+  it('rejects a non-string translator name', async () => {
+    const payload = cloneArticlePayload();
+    const source = payload.source as Record<string, unknown>;
+    source.translators = [42];
+
+    await expectArticleValidationError(payload, 'source.translators');
   });
 
   it('rejects an invalid source.publishedAt', async () => {
@@ -692,6 +1031,35 @@ describe('content loader', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://content.example/base/manifest.json',
+    );
+  });
+
+  it('resolves image URLs from the default content base', async () => {
+    const { resolveImageUrl } = await loadContentModule();
+
+    expect(resolveImageUrl(validImage.path)).toBe(
+      `/data/${validImage.path}`,
+    );
+  });
+
+  it('resolves image URLs from VITE_CONTENT_BASE_URL', async () => {
+    vi.stubEnv(
+      'VITE_CONTENT_BASE_URL',
+      'https://content.example/base',
+    );
+    const { resolveImageUrl } = await loadContentModule();
+
+    expect(resolveImageUrl(validImage.path)).toBe(
+      `https://content.example/base/${validImage.path}`,
+    );
+  });
+
+  it('rejects unsafe image paths when resolving URLs', async () => {
+    const { resolveImageUrl, ContentValidationError } =
+      await loadContentModule();
+
+    expect(() => resolveImageUrl('../images/photo-0123456789ab.jpg')).toThrow(
+      ContentValidationError,
     );
   });
 });

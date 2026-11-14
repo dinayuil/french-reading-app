@@ -15,6 +15,7 @@ import GlossaryText from '../components/GlossaryText';
 import LevelBadge from '../components/LevelBadge';
 import LicenseBlock from '../components/LicenseBlock';
 import SourceAttribution from '../components/SourceAttribution';
+import ArticleImage from '../components/ArticleImage';
 import type { Article } from '../types/content';
 import '../styles/read.css';
 
@@ -237,6 +238,8 @@ function ArticleReader({ article }: { article: Article }) {
             {t('read.practiceCta')}
           </Link>
         </div>
+
+        {article.image && <ArticleImage image={article.image} />}
 
         <div className="article-body" data-testid="article-body">
           {article.paragraphs.map((paragraph, pIndex) => (

@@ -11,10 +11,11 @@ import {
   getReadingProgress,
   saveReadingProgress,
 } from '../features/data/studyData';
-import type { Article } from '../types/content';
+import type { Article, ArticleImage } from '../types/content';
 
 vi.mock('../lib/content', () => ({
   resolveArticleById: vi.fn(),
+  resolveImageUrl: vi.fn((path: string) => `/data/${path}`),
 }));
 
 vi.mock('../lib/dictionary', () => ({
@@ -68,6 +69,23 @@ const article: Article = {
     name: 'CC BY-SA 4.0',
     url: 'https://creativecommons.org/licenses/by-sa/4.0/',
   },
+};
+
+const articleImage: ArticleImage = {
+  path: 'images/2026-11-09-tour-eiffel-0123456789ab.jpg',
+  alt: 'La tour Eiffel vue depuis le Champ-de-Mars',
+  author: 'Jane Doe',
+  sourceUrl:
+    'https://commons.wikimedia.org/wiki/File:Tour_Eiffel_Champ_de_Mars.jpg?oldid=123456789',
+  license: 'CC BY-SA 3.0',
+  licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/',
+  changes: 'Image redimensionnée à 1200 px de large.',
+  width: 1200,
+  height: 800,
+  byteLength: 345_678,
+  sha256: '0123456789abcdef'.repeat(4),
+  fileRevisionId: '123456789',
+  retrievedAt: '2026-11-14',
 };
 
 function renderRead(path = '/read/2026-11-09-tour-eiffel') {
@@ -144,6 +162,36 @@ describe('ReadPage', () => {
     expect(
       screen.getByRole('button', { name: 'situé : 位于，坐落在' }),
     ).toBeInTheDocument();
+  });
+
+  it('renders the attributed article image before the body', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue({
+      ...article,
+      image: articleImage,
+    });
+
+    renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    const figure = screen.getByTestId('article-image');
+    expect(figure.nextElementSibling).toBe(screen.getByTestId('article-body'));
+    expect(screen.getByRole('img', { name: articleImage.alt })).toHaveAttribute(
+      'src',
+      `/data/${articleImage.path}`,
+    );
+    expect(
+      screen.getByRole('link', { name: 'Wikimedia Commons' }),
+    ).toHaveAttribute('href', articleImage.sourceUrl);
+    expect(
+      screen.getByRole('link', { name: articleImage.license }),
+    ).toHaveAttribute('href', articleImage.licenseUrl);
+  });
+
+  it('renders no image figure for articles without an image', async () => {
+    const { container } = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    expect(container.querySelector('figure')).toBeNull();
   });
 
   it('shows the Global Voices attribution before the article when requested', async () => {

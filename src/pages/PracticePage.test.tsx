@@ -7,10 +7,11 @@ import { resolveArticleById } from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
 import { i18n } from '../i18n';
 import { readStudyData } from '../features/data/backup';
-import type { Article } from '../types/content';
+import type { Article, ArticleImage } from '../types/content';
 
 vi.mock('../lib/content', () => ({
   resolveArticleById: vi.fn(),
+  resolveImageUrl: vi.fn((path: string) => `/data/${path}`),
 }));
 
 vi.mock('../lib/dictionary', () => ({
@@ -39,6 +40,8 @@ const article: Article = {
       options: ['À Lyon', 'À Paris', 'À Nice', 'À Lille'],
       answerIndex: 1,
       evidence: 'La tour Eiffel est un grand monument situé à Paris.',
+      explanation:
+        'Le texte indique que la tour Eiffel se trouve à Paris.',
     },
     {
       id: 'q2',
@@ -46,6 +49,8 @@ const article: Article = {
       options: ['La tour Eiffel', 'Le Louvre', 'Notre-Dame', 'Le Sacré-Cœur'],
       answerIndex: 0,
       evidence: 'La tour Eiffel est un grand monument situé à Paris.',
+      explanation:
+        'Le titre et le texte décrivent tous les deux la tour Eiffel.',
     },
   ],
   translations: {
@@ -61,6 +66,21 @@ const article: Article = {
       questions: {
         q1: '文章说明铁塔位于巴黎。',
         q2: '文章标题和内容都指向埃菲尔铁塔。',
+      },
+      questionTexts: {
+        q1: {
+          prompt: '埃菲尔铁塔在哪里？',
+          options: [
+            '在里昂，罗讷河附近',
+            '在巴黎，塞纳河畔',
+            '在大西洋海岸',
+            '在法国南部',
+          ],
+        },
+        q2: {
+          prompt: '文中描述的是哪座纪念碑？',
+          options: ['这座铁塔', '卢浮宫', '巴黎圣母院', '圣心堂'],
+        },
       },
     },
   },
@@ -84,6 +104,40 @@ const article: Article = {
     url: 'https://creativecommons.org/licenses/by-sa/4.0/',
   },
 };
+
+const articleImage: ArticleImage = {
+  path: 'images/2026-11-09-tour-eiffel-0123456789ab.jpg',
+  alt: 'La tour Eiffel vue depuis le Champ-de-Mars',
+  author: 'Jane Doe',
+  sourceUrl:
+    'https://commons.wikimedia.org/wiki/File:Tour_Eiffel_Champ_de_Mars.jpg?oldid=123456789',
+  license: 'CC BY-SA 3.0',
+  licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/',
+  changes: 'Image redimensionnée à 1200 px de large.',
+  width: 1200,
+  height: 800,
+  byteLength: 345_678,
+  sha256: '0123456789abcdef'.repeat(4),
+  fileRevisionId: '123456789',
+  retrievedAt: '2026-11-14',
+};
+
+function legacyArticle(): Article {
+  const legacyTranslation = { ...article.translations.zh };
+  delete legacyTranslation.questionTexts;
+
+  return {
+    ...article,
+    questions: article.questions.map((question) => {
+      const legacyQuestion = { ...question };
+      delete legacyQuestion.explanation;
+      return legacyQuestion;
+    }),
+    translations: {
+      zh: legacyTranslation,
+    },
+  };
+}
 
 function renderPractice(path = '/practice/2026-11-09-tour-eiffel') {
   return render(
@@ -119,20 +173,26 @@ function mockSelection(
   getNode: () => Node | null = () =>
     document.querySelector('[data-testid="article-body"]'),
 ) {
-  vi.stubGlobal(
-    'getSelection',
-    vi.fn().mockImplementation(() => {
-      const node = getNode();
-      return {
-        toString: () => text,
-        anchorNode: node,
-        focusNode: node,
-        rangeCount: node ? 1 : 0,
-        getRangeAt: () => ({}),
-        removeAllRanges: () => {},
-      };
-    }),
-  );
+  let selectedText = text;
+  const selection = {
+    toString: () => selectedText,
+    get anchorNode() {
+      return selectedText ? getNode() : null;
+    },
+    get focusNode() {
+      return selectedText ? getNode() : null;
+    },
+    get rangeCount() {
+      return selectedText && getNode() ? 1 : 0;
+    },
+    getRangeAt: () => ({}),
+    removeAllRanges: () => {
+      selectedText = '';
+    },
+  };
+
+  vi.stubGlobal('getSelection', vi.fn(() => selection));
+  return selection;
 }
 
 describe('PracticePage', () => {
@@ -182,11 +242,51 @@ describe('PracticePage', () => {
     expect(
       screen.queryByRole('button', { name: 'Traduction chinoise' }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questionTexts!.q1.options[1]),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(article.questions[0].explanation!),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questions.q1),
+    ).not.toBeInTheDocument();
     expect(lookupFrToZh).not.toHaveBeenCalled();
 
     expect(screen.queryByText(article.summary)).not.toBeInTheDocument();
     expect(screen.getByTestId('practice-timer')).toHaveTextContent('0 s');
     expect(screen.getByRole('radio', { name: 'À Paris' })).not.toBeChecked();
+  });
+
+  it('shows the article image only after submitting the practice', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue({
+      ...article,
+      image: articleImage,
+    });
+
+    const { container } = renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    expect(container.querySelector('figure')).toBeNull();
+    expect(
+      screen.queryByRole('img', { name: articleImage.alt }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    const figure = screen.getByTestId('article-image');
+    expect(figure.nextElementSibling).toBe(screen.getByTestId('article-body'));
+    expect(
+      screen.getByRole('img', { name: articleImage.alt }),
+    ).toHaveAttribute('src', `/data/${articleImage.path}`);
+    expect(
+      screen.getByRole('link', { name: articleImage.license }),
+    ).toHaveAttribute('href', articleImage.licenseUrl);
   });
 
   it('shows the Global Voices attribution before submitting', async () => {
@@ -290,6 +390,18 @@ describe('PracticePage', () => {
       screen.getByRole('button', { name: 'situé：位于，坐落在' }),
     ).toBeInTheDocument();
     expect(
+      screen.getByText(article.questions[0].explanation!),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.questions[1].explanation!),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questions.q1),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).not.toBeInTheDocument();
+    expect(
       screen.queryByText(article.translations.zh.title),
     ).not.toBeInTheDocument();
 
@@ -302,6 +414,18 @@ describe('PracticePage', () => {
     expect(
       screen.getByText(article.translations.zh.paragraphs[0].sentences[0]),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q1.options[1]),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questions.q1),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(article.questions[0].explanation!),
+    ).not.toBeInTheDocument();
   });
 
   it('shows the loading state while the article is fetched', () => {
@@ -495,11 +619,17 @@ describe('PracticePage', () => {
       screen.queryByText(article.translations.zh.summary),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText(article.translations.zh.questions.q1),
+      screen.getByText(article.questions[0].explanation!),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(article.translations.zh.questions.q2),
+      screen.getByText(article.questions[1].explanation!),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questions.q1),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questions.q2),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByText(/Justification :/)).toHaveLength(2);
 
     await userEvent.click(
@@ -522,6 +652,276 @@ describe('PracticePage', () => {
     expect(
       screen.getByText(article.translations.zh.paragraphs[0].sentences[0]),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q2.prompt),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q1.options[1]),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q2.options[0]),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questions.q1),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questions.q2),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(article.questions[0].explanation!),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps French questions after submit until the translation toggle is enabled', async () => {
+    renderPractice();
+
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(screen.getByRole('radio', { name: 'À Paris' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    expect(screen.getByText(article.questions[0].prompt)).toBeInTheDocument();
+    expect(
+      screen.getByText(article.questions[0].explanation!),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questionTexts!.q1.options[1]),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questions.q1),
+    ).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole('button', {
+      name: 'Traduction chinoise',
+    });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    await userEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(article.questions[0].prompt)).toBeInTheDocument();
+    expect(
+      screen.getByText(article.questions[0].options[1]),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q1.options[1]),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(article.questions[0].explanation!),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questions.q1),
+    ).toBeInTheDocument();
+
+    await userEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    expect(
+      screen.queryByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questionTexts!.q1.options[1]),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questions.q1),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(article.questions[0].explanation!),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps French content in the Chinese UI until the translation toggle is enabled', async () => {
+    await act(async () => {
+      await i18n.changeLanguage('zh');
+    });
+
+    renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    expect(screen.getByText('练习模式')).toBeInTheDocument();
+    expect(screen.getByText(article.questions[0].prompt)).toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('radio', { name: 'À Paris' }));
+    await userEvent.click(screen.getByRole('button', { name: '交卷' }));
+
+    expect(screen.getByText('得分：1 / 2')).toBeInTheDocument();
+    expect(
+      screen.getByText(article.questions[0].explanation!),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(article.translations.zh.questions.q1),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '中文对照' }));
+
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q1.options[1]),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(article.translations.zh.questions.q1),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(article.questions[0].explanation!),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('radio', { name: /À Paris/ }),
+    ).toBeChecked();
+  });
+
+  it('keeps the translation toggle, selections, score and saved session when the UI language changes', async () => {
+    renderPractice();
+
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(screen.getByRole('radio', { name: 'À Paris' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Traduction chinoise' }),
+    );
+
+    const sessionsBefore = readStoredSessions();
+    expect(sessionsBefore).toHaveLength(1);
+
+    await act(async () => {
+      await i18n.changeLanguage('zh');
+    });
+
+    expect(
+      screen.getByRole('button', { name: '中文对照' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /À Paris/ })).toBeChecked();
+    expect(screen.getByText('得分：1 / 2')).toBeInTheDocument();
+    expect(readStoredSessions()).toEqual(sessionsBefore);
+
+    await act(async () => {
+      await i18n.changeLanguage('fr');
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Traduction chinoise' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /À Paris/ })).toBeChecked();
+    expect(screen.getByText('Score : 1 / 2')).toBeInTheDocument();
+    expect(readStoredSessions()).toEqual(sessionsBefore);
+  });
+
+  it('translates the wrong selected answer without changing the score', async () => {
+    renderPractice();
+
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(screen.getByRole('radio', { name: 'À Lyon' }));
+    await userEvent.click(
+      screen.getByRole('radio', { name: 'La tour Eiffel' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    expect(screen.getByText('Score : 1 / 2')).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Traduction chinoise' }),
+    );
+
+    const yourAnswer = screen.getByText(/Votre réponse/);
+    expect(yourAnswer).toHaveTextContent('À Lyon');
+    expect(yourAnswer).toHaveTextContent('在里昂，罗讷河附近');
+    expect(screen.getByText('Score : 1 / 2')).toBeInTheDocument();
+    const evidenceQuotes = screen.getAllByText(article.questions[0].evidence);
+    expect(evidenceQuotes).toHaveLength(2);
+    evidenceQuotes.forEach((quote) => {
+      expect(quote).toHaveAttribute('lang', 'fr');
+    });
+    expect(readStoredSessions()[0].answers[0]).toEqual({
+      questionId: 'q1',
+      selectedIndex: 0,
+      correct: false,
+    });
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Traduction chinoise' }),
+    );
+
+    expect(screen.getByText(/Votre réponse/)).not.toHaveTextContent(
+      '在里昂，罗讷河附近',
+    );
+    expect(screen.getByText(/Votre réponse/)).toHaveTextContent('À Lyon');
+    expect(screen.getByText('Score : 1 / 2')).toBeInTheDocument();
+  });
+
+  it('keeps legacy evidence without an explanation until translation is enabled', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue(legacyArticle());
+    const { container } = renderPractice();
+
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    expect(screen.getByText('Score : 0 / 2')).toBeInTheDocument();
+    expect(screen.getAllByText(/Justification :/)).toHaveLength(2);
+    expect(
+      container.querySelectorAll('.practice-feedback__explanation'),
+    ).toHaveLength(0);
+    expect(
+      screen.queryByText(article.translations.zh.questions.q1),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(article.questions[0].prompt)).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Traduction chinoise' }),
+    );
+
+    expect(screen.getByText(article.translations.zh.title)).toBeInTheDocument();
+    expect(
+      container.querySelectorAll('.practice-feedback__explanation'),
+    ).toHaveLength(2);
+    expect(
+      screen.getByText(article.translations.zh.questions.q1),
+    ).toHaveAttribute('lang', 'zh-CN');
+    expect(
+      screen.getByText(article.translations.zh.questions.q2),
+    ).toHaveAttribute('lang', 'zh-CN');
+    expect(
+      screen.queryByText(article.translations.zh.questionTexts!.q1.prompt),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(article.questions[0].prompt)).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Traduction chinoise' }),
+    );
+
+    expect(
+      container.querySelectorAll('.practice-feedback__explanation'),
+    ).toHaveLength(0);
+    expect(
+      screen.queryByText(article.translations.zh.questions.q1),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText(/Justification :/)).toHaveLength(2);
+    expect(screen.getByText(article.questions[0].prompt)).toBeInTheDocument();
   });
 
   it('saves exactly one session with the duration frozen at submit time', async () => {
@@ -660,6 +1060,51 @@ describe('PracticePage', () => {
     expect(screen.getByText('Score : 1 / 2')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mark-word')).not.toBeInTheDocument();
+  });
+
+  it('clears the old selection after submit and still allows a new one', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    renderPractice();
+    await act(async () => {});
+    expect(
+      screen.getByRole('heading', { name: article.title }),
+    ).toBeInTheDocument();
+
+    const oldSelection = mockSelection('flâner');
+    const articleBody = screen.getByTestId('article-body');
+
+    act(() => {
+      articleBody.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+    expect(screen.getByTestId('mark-word')).toBeInTheDocument();
+
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+    await user.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    expect(screen.getByText('Score : 0 / 2')).toBeInTheDocument();
+    expect(screen.queryByTestId('mark-word')).not.toBeInTheDocument();
+
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'));
+      vi.advanceTimersByTime(200);
+    });
+    expect(screen.queryByTestId('mark-word')).not.toBeInTheDocument();
+    expect(oldSelection.toString()).toBe('');
+
+    mockSelection('relire');
+    act(() => {
+      articleBody.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+    expect(screen.getByTestId('mark-word')).toBeInTheDocument();
+    await user.click(screen.getByTestId('mark-word'));
+
+    expect(readStoredSessions()[0].markedWords).toEqual(['relire']);
   });
 
   it('keeps the selection when marking fails, then retries', async () => {

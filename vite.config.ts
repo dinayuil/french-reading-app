@@ -8,6 +8,13 @@ import type { Plugin } from 'vite';
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 const contentRoot = path.resolve(appRoot, '../content-public');
 
+const CONTENT_MIME_TYPES: Record<string, string> = {
+  '.json': 'application/json; charset=utf-8',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+};
+
 // The app fetches content at runtime. In development the sibling content
 // repository is served under /data/ so the default base URL works offline.
 function contentDevServer(): Plugin {
@@ -28,10 +35,10 @@ function contentDevServer(): Plugin {
             next();
             return;
           }
-          response.setHeader(
-            'Content-Type',
-            'application/json; charset=utf-8',
-          );
+          const contentType =
+            CONTENT_MIME_TYPES[path.extname(file).toLowerCase()] ??
+            'application/octet-stream';
+          response.setHeader('Content-Type', contentType);
           response.end(data);
         });
       });

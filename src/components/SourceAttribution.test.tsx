@@ -45,6 +45,15 @@ const article: Article = {
   },
 };
 
+const translatedArticle: Article = {
+  ...article,
+  source: {
+    ...article.source,
+    authors: ['Malka Older'],
+    translators: ['Guillaume Cottin'],
+  },
+};
+
 describe('SourceAttribution', () => {
   afterEach(() => {
     cleanup();
@@ -70,5 +79,22 @@ describe('SourceAttribution', () => {
     expect(
       screen.getByRole('link', { name: 'CC BY-SA 4.0' }),
     ).toHaveAttribute('href', article.license.url);
+  });
+
+  it('separates the original author from the French translator credit', () => {
+    render(<SourceAttribution article={translatedArticle} />);
+
+    expect(screen.getByText(/Malka Older/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Traduction française de Guillaume Cottin/),
+    ).toHaveAttribute('lang', 'fr');
+  });
+
+  it('does not add a translation credit without translators', () => {
+    render(<SourceAttribution article={article} />);
+
+    expect(
+      screen.queryByText(/Traduction française/),
+    ).not.toBeInTheDocument();
   });
 });

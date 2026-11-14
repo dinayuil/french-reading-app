@@ -10,6 +10,7 @@ import GlossaryText from '../components/GlossaryText';
 import LevelBadge from '../components/LevelBadge';
 import LicenseBlock from '../components/LicenseBlock';
 import SourceAttribution from '../components/SourceAttribution';
+import ArticleImage from '../components/ArticleImage';
 import { usePracticeSession } from '../features/practice/usePracticeSession';
 import type { Article } from '../types/content';
 import '../styles/read.css';
@@ -139,6 +140,13 @@ function PracticeRunner({ article }: { article: Article }) {
     }
   }, []);
 
+  const cancelPendingSelectionRead = useCallback(() => {
+    if (selectionTimerRef.current !== null) {
+      window.clearTimeout(selectionTimerRef.current);
+      selectionTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     const scheduleSelectionRead = () => {
       if (selectionTimerRef.current !== null) {
@@ -159,6 +167,7 @@ function PracticeRunner({ article }: { article: Article }) {
       document.removeEventListener('selectionchange', scheduleSelectionRead);
       if (selectionTimerRef.current !== null) {
         window.clearTimeout(selectionTimerRef.current);
+        selectionTimerRef.current = null;
       }
     };
   }, [readSelection]);
@@ -219,6 +228,8 @@ function PracticeRunner({ article }: { article: Article }) {
     }
 
     translationRequestRef.current += 1;
+    cancelPendingSelectionRead();
+    window.getSelection()?.removeAllRanges();
     setMarkError(false);
     setSelection(null);
   };
@@ -356,6 +367,8 @@ function PracticeRunner({ article }: { article: Article }) {
         {article.source.attributionPosition === 'top' && (
           <SourceAttribution article={article} />
         )}
+
+        {submitted && article.image && <ArticleImage image={article.image} />}
 
         <div
           ref={articleBodyRef}
@@ -531,6 +544,12 @@ function PracticeRunner({ article }: { article: Article }) {
                   ? ' practice-question--correct'
                   : ' practice-question--incorrect'
                 : '';
+              const translatedQuestion = showZh
+                ? translation.questionTexts?.[question.id]
+                : undefined;
+              const displayedExplanation = showZh
+                ? translation.questions[question.id]
+                : question.explanation;
 
               return (
                 <li key={question.id} className="practice-questions__item">
@@ -543,7 +562,20 @@ function PracticeRunner({ article }: { article: Article }) {
                           number: questionIndex + 1,
                         })}
                       </span>{' '}
-                      {question.prompt}
+                      <span
+                        className="practice-question__text"
+                        lang="fr"
+                      >
+                        {question.prompt}
+                      </span>
+                      {translatedQuestion && (
+                        <span
+                          className="practice-question__text-zh"
+                          lang="zh-CN"
+                        >
+                          {translatedQuestion.prompt}
+                        </span>
+                      )}
                     </legend>
                     <div className="practice-question__options">
                       {question.options.map((option, optionIndex) => {
@@ -567,6 +599,8 @@ function PracticeRunner({ article }: { article: Article }) {
                         ]
                           .filter(Boolean)
                           .join(' ');
+                        const translatedOption =
+                          translatedQuestion?.options[optionIndex];
 
                         return (
                           <label
@@ -584,7 +618,20 @@ function PracticeRunner({ article }: { article: Article }) {
                               }
                             />
                             <span className="practice-option__text">
-                              {option}
+                              <span
+                                className="practice-option__text-fr"
+                                lang="fr"
+                              >
+                                {option}
+                              </span>
+                              {translatedOption && (
+                                <span
+                                  className="practice-option__text-zh"
+                                  lang="zh-CN"
+                                >
+                                  {translatedOption}
+                                </span>
+                              )}
                             </span>
                           </label>
                         );
@@ -605,14 +652,37 @@ function PracticeRunner({ article }: { article: Article }) {
                         {!result.correct && (
                           <p className="practice-feedback__your-answer">
                             {t('practice.yourAnswer')}{' '}
-                            {result.selectedIndex === null
-                              ? t('practice.notAnswered')
-                              : question.options[result.selectedIndex]}
+                            {result.selectedIndex === null ? (
+                              t('practice.notAnswered')
+                            ) : (
+                              <>
+                                <span lang="fr">
+                                  {question.options[result.selectedIndex]}
+                                </span>
+                                {translatedQuestion && (
+                                  <span
+                                    className="practice-feedback__your-answer-zh"
+                                    lang="zh-CN"
+                                  >
+                                    {
+                                      translatedQuestion.options[
+                                        result.selectedIndex
+                                      ]
+                                    }
+                                  </span>
+                                )}
+                              </>
+                            )}
                           </p>
                         )}
-                        <p className="practice-feedback__explanation">
-                          {translation.questions[question.id]}
-                        </p>
+                        {displayedExplanation && (
+                          <p
+                            className="practice-feedback__explanation"
+                            lang={showZh ? 'zh-CN' : 'fr'}
+                          >
+                            {displayedExplanation}
+                          </p>
+                        )}
                         <p className="practice-feedback__evidence">
                           <span className="practice-feedback__evidence-label">
                             {t('practice.evidence')}

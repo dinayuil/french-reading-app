@@ -8,10 +8,11 @@ interface LicenseBlockProps {
 export default function LicenseBlock({ article }: LicenseBlockProps) {
   const { t } = useTranslation();
   const authors = article.source.authors.join(', ');
+  const translators = article.source.translators ?? [];
 
   return (
     <aside className="license-block" aria-label={t('licenseBlock.aria')}>
-      <p>
+      <p lang="fr">
         Texte adapté de «{' '}
         <a
           href={article.source.url}
@@ -29,12 +30,15 @@ export default function LicenseBlock({ article }: LicenseBlockProps) {
           {article.source.license}
         </a>
         .
+        {translators.length > 0 && (
+          <>{' '}Traduction française de {translators.join(', ')}.</>
+        )}
       </p>
-      <p>
+      <p lang="fr">
         <strong>Modifications :</strong> {article.adaptation.changes} Révisé par{' '}
         {article.adaptation.reviewer}, {article.adaptation.date}.
       </p>
-      <p>
+      <p lang="fr">
         Cette adaptation est publiée sous{' '}
         <a
           href={article.license.url}

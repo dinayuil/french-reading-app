@@ -44,6 +44,15 @@ const article: Article = {
   },
 };
 
+const translatedArticle: Article = {
+  ...article,
+  source: {
+    ...article.source,
+    authors: ['Malka Older'],
+    translators: ['Guillaume Cottin'],
+  },
+};
+
 describe('LicenseBlock', () => {
   afterEach(() => {
     cleanup();
@@ -102,5 +111,22 @@ describe('LicenseBlock', () => {
     expect(
       screen.getByRole('complementary', { name: 'Attribution et licence' }),
     ).toBeInTheDocument();
+  });
+
+  it('separates the original author from the French translator credit', () => {
+    render(<LicenseBlock article={translatedArticle} />);
+
+    expect(screen.getByText(/Malka Older/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Traduction française de Guillaume Cottin/),
+    ).toHaveAttribute('lang', 'fr');
+  });
+
+  it('does not add a translation credit without translators', () => {
+    render(<LicenseBlock article={article} />);
+
+    expect(
+      screen.queryByText(/Traduction française/),
+    ).not.toBeInTheDocument();
   });
 });

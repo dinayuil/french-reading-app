@@ -33,6 +33,12 @@ export interface Question {
   options: string[];
   answerIndex: number;
   evidence: string; // exact sentence from the article
+  explanation?: string; // French reasoning, optional for legacy articles
+}
+
+export interface QuestionTextTranslation {
+  prompt: string;
+  options: string[];
 }
 
 export interface ArticleTranslation {
@@ -41,12 +47,14 @@ export interface ArticleTranslation {
   paragraphs: ArticleParagraph[];
   glossary: Record<string, string>; // term -> explication
   questions: Record<string, string>; // questionId -> explication
+  questionTexts?: Record<string, QuestionTextTranslation>; // questionId -> translated prompt and options
 }
 
 export interface SourceMeta {
   site: string;
   title: string;
   authors: string[];
+  translators?: string[]; // French-version translators, when distinct from authors
   url: string;
   license: string; // 'CC BY-SA 4.0'
   licenseUrl: string;
@@ -68,6 +76,22 @@ export interface LicenseMeta {
   url: string;
 }
 
+export interface ArticleImage {
+  path: string;
+  alt: string;
+  author: string;
+  sourceUrl: string;
+  license: string;
+  licenseUrl: string;
+  changes: string;
+  width: number;
+  height: number;
+  byteLength: number;
+  sha256: string;
+  fileRevisionId: string;
+  retrievedAt: string; // YYYY-MM-DD
+}
+
 export interface Article {
   id: string;
   title: string;
@@ -78,6 +102,7 @@ export interface Article {
   paragraphs: ArticleParagraph[];
   glossary: GlossaryEntry[];
   questions: Question[];
+  image?: ArticleImage;
   translations: {
     zh: ArticleTranslation;
     [locale: string]: ArticleTranslation | undefined;
