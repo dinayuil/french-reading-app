@@ -17,6 +17,7 @@ const IMAGE_PATH = /^images\/[a-z0-9-]+-[a-f0-9]{12}\.(jpg|png)$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const IMAGE_LICENSE_URLS = new Map<string, string>([
   ['CC0 1.0', 'https://creativecommons.org/publicdomain/zero/1.0/'],
+  ['Public domain', 'https://creativecommons.org/publicdomain/mark/1.0/'],
   ['CC BY 2.0', 'https://creativecommons.org/licenses/by/2.0/'],
   ['CC BY 2.5', 'https://creativecommons.org/licenses/by/2.5/'],
   ['CC BY 3.0', 'https://creativecommons.org/licenses/by/3.0/'],
@@ -395,7 +396,10 @@ function assertArticleImage(
   const license = requireNonEmptyString(value, 'license', `${path}.license`);
   const expectedLicenseUrl = IMAGE_LICENSE_URLS.get(license);
   if (!expectedLicenseUrl) {
-    invalid(`${path}.license`, 'expected a supported Creative Commons licence');
+    invalid(
+      `${path}.license`,
+      'expected a supported public domain or Creative Commons licence',
+    );
   }
   const licenseUrl = requireNonEmptyString(
     value,

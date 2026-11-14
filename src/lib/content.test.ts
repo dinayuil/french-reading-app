@@ -164,14 +164,15 @@ function validQuestionTexts() {
 async function expectArticleValidationError(
   payload: unknown,
   expectedPath: string,
+  label?: string,
 ) {
   stubFetch({ [`/data/${articlePath}`]: { body: payload } });
   const { loadArticle, ContentValidationError } = await loadContentModule();
 
   const error: unknown = await loadArticle(articlePath).catch((e: unknown) => e);
 
-  expect(error).toBeInstanceOf(ContentValidationError);
-  expect((error as Error).message).toContain(expectedPath);
+  expect(error, label).toBeInstanceOf(ContentValidationError);
+  expect((error as Error).message, label).toContain(expectedPath);
 }
 
 async function expectDayValidationError(
@@ -206,13 +207,14 @@ function cloneImagePayload() {
 async function expectImageValidationError(
   mutate: (image: Record<string, unknown>) => void,
   expectedPath: string,
+  label?: string,
 ) {
   const payload = cloneArticlePayload();
   const image = cloneImagePayload();
   mutate(image);
   payload.image = image;
 
-  await expectArticleValidationError(payload, expectedPath);
+  await expectArticleValidationError(payload, expectedPath, label);
 }
 
 afterEach(() => {
@@ -647,6 +649,23 @@ describe('content loader', () => {
     expect(article.image).toEqual(validImage);
   });
 
+  it('accepts a public domain image with the canonical PDM URL', async () => {
+    const payload = cloneArticlePayload();
+    const image = cloneImagePayload();
+    image.license = 'Public domain';
+    image.licenseUrl = 'https://creativecommons.org/publicdomain/mark/1.0/';
+    payload.image = image;
+    stubFetch({ [`/data/${articlePath}`]: { body: payload } });
+    const { loadArticle } = await loadContentModule();
+
+    const article = await loadArticle(articlePath);
+
+    expect(article.image).toMatchObject({
+      license: 'Public domain',
+      licenseUrl: 'https://creativecommons.org/publicdomain/mark/1.0/',
+    });
+  });
+
   it('accepts an article without an image', async () => {
     stubFetch({ [`/data/${articlePath}`]: { body: validArticle } });
     const { loadArticle } = await loadContentModule();
@@ -717,6 +736,76 @@ describe('content loader', () => {
     await expectImageValidationError((image) => {
       image.licenseUrl = 'https://creativecommons.org/licenses/by/4.0/';
     }, 'image.licenseUrl');
+  });
+
+  it('rejects arbitrary public domain labels and non-canonical PDM URLs', async () => {
+    const pdmUrl = 'https://creativecommons.org/publicdomain/mark/1.0/';
+    const cases: Array<[string, Record<string, string>, string]> = [
+      [
+        'arbitrary PD label',
+        { license: 'PD', licenseUrl: pdmUrl },
+        'image.license',
+      ],
+      [
+        'lowercase public domain label',
+        { license: 'public domain', licenseUrl: pdmUrl },
+        'image.license',
+      ],
+      [
+        'unknown license',
+        { license: 'Unknown', licenseUrl: pdmUrl },
+        'image.license',
+      ],
+      [
+        'unsupported old CC version',
+        {
+          license: 'CC BY 1.0',
+          licenseUrl: 'https://creativecommons.org/licenses/by/1.0/',
+        },
+        'image.license',
+      ],
+      [
+        'Public domain with CC0 URL',
+        {
+          license: 'Public domain',
+          licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+        },
+        'image.licenseUrl',
+      ],
+      [
+        'Public domain with mismatched URL',
+        {
+          license: 'Public domain',
+          licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+        },
+        'image.licenseUrl',
+      ],
+      [
+        'Public domain with PDM query',
+        { license: 'Public domain', licenseUrl: `${pdmUrl}?x=1` },
+        'image.licenseUrl',
+      ],
+      [
+        'Public domain with PDM deed',
+        { license: 'Public domain', licenseUrl: `${pdmUrl}deed.en` },
+        'image.licenseUrl',
+      ],
+      [
+        'CC0 with PDM URL',
+        { license: 'CC0 1.0', licenseUrl: pdmUrl },
+        'image.licenseUrl',
+      ],
+    ];
+
+    for (const [label, overrides, expectedPath] of cases) {
+      await expectImageValidationError(
+        (image) => {
+          Object.assign(image, overrides);
+        },
+        expectedPath,
+        label,
+      );
+    }
   });
 
   it('rejects image dimensions above 1600 pixels', async () => {
