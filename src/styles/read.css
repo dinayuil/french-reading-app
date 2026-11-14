@@ -332,6 +332,16 @@
   font-size: 0.9375rem;
 }
 
+@media (max-width: 639px) {
+  .selection-toolbar {
+    bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .explanation-panel {
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* License block */
 .license-block {
   max-width: var(--measure);

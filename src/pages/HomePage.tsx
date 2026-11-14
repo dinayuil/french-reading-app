@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ArticleCard from '../components/ArticleCard';
 import ErrorState from '../components/ErrorState';
+import FilterSheet from '../components/FilterSheet';
 import OnboardingBanner from '../components/OnboardingBanner';
 import {
   addLocalDays,
@@ -12,22 +13,17 @@ import {
   type HomeRangeDays,
 } from '../features/home/homeDates';
 import {
+  ORDER_LABEL_KEYS,
+  RANGE_LABEL_KEYS,
+  RANGE_SHORT_KEYS,
+} from '../features/home/filterLabels';
+import {
   useHomeFeed,
   type LevelFilter,
 } from '../features/home/useHomeFeed';
+import { MOBILE_QUERY, useMediaQuery } from '../lib/useMediaQuery';
 
 const LEVEL_FILTERS: LevelFilter[] = ['all', 'A2', 'B1', 'B2'];
-
-const RANGE_LABEL_KEYS: Record<HomeRangeDays, string> = {
-  3: 'home.range3',
-  7: 'home.range7',
-  30: 'home.range30',
-};
-
-const ORDER_LABEL_KEYS: Record<HomeOrder, string> = {
-  newest: 'home.orderNewest',
-  oldest: 'home.orderOldest',
-};
 
 interface HomePageProps {
   /** Injectable clock key (YYYY-MM-DD) for tests and deterministic previews. */
@@ -38,16 +34,23 @@ export default function HomePage({
   today = getLocalToday(),
 }: HomePageProps = {}) {
   const { t, i18n } = useTranslation();
+  const isMobile = useMediaQuery(MOBILE_QUERY);
   const [rangeDays, setRangeDays] = useState<HomeRangeDays>(3);
   const [level, setLevel] = useState<LevelFilter>('all');
   const [order, setOrder] = useState<HomeOrder>('newest');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const feed = useHomeFeed({ rangeDays, level, order, today });
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
   const loadMoreRef = useRef(feed.loadMore);
 
   useEffect(() => {
     loadMoreRef.current = feed.loadMore;
   });
+
+  useEffect(() => {
+    if (!isMobile && filtersOpen) setFiltersOpen(false);
+  }, [isMobile, filtersOpen]);
 
   useEffect(() => {
     const node = sentinelRef.current;
@@ -99,14 +102,18 @@ export default function HomePage({
 
   return (
     <div className="home-page">
-      <section className="hero home-hero">
-        <div className="container home-hero__inner">
-          <div className="home-hero__copy">
-            <p className="home-hero__kicker">{t('home.heroKicker')}</p>
-            <h1 className="hero__title">{t('home.heroTitle')}</h1>
+      {isMobile ? (
+        <h1 className="sr-only">{t('home.heroTitle')}</h1>
+      ) : (
+        <section className="hero home-hero">
+          <div className="container home-hero__inner">
+            <div className="home-hero__copy">
+              <p className="home-hero__kicker">{t('home.heroKicker')}</p>
+              <h1 className="hero__title">{t('home.heroTitle')}</h1>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="container home-page__content">
         <OnboardingBanner />
@@ -128,17 +135,10 @@ export default function HomePage({
 
         {feed.status === 'ready' && (
           <>
-            <div
-              className="home-toolbar"
-              role="group"
-              aria-label={t('home.filtersLabel')}
-            >
-              <div className="home-toolbar__group">
-                <span className="home-toolbar__label">
-                  {t('home.levelLabel')}
-                </span>
+            {isMobile ? (
+              <div className="mobile-filter-bar">
                 <div
-                  className="filter-bar__pills"
+                  className="filter-bar__pills mobile-filter-bar__levels"
                   role="group"
                   aria-label={t('home.filterLabel')}
                 >
@@ -154,66 +154,124 @@ export default function HomePage({
                     </button>
                   ))}
                 </div>
-              </div>
 
-              <div className="home-toolbar__group">
-                <span
-                  className="home-toolbar__label"
-                  id="home-range-label"
+                <button
+                  ref={filterButtonRef}
+                  type="button"
+                  className="mobile-filter-bar__filters"
+                  aria-haspopup="dialog"
+                  aria-expanded={filtersOpen}
+                  onClick={() => setFiltersOpen(true)}
                 >
-                  {t('home.rangeLabel')}
-                </span>
-                <div
-                  className="segmented"
-                  role="group"
-                  aria-labelledby="home-range-label"
-                >
-                  {HOME_RANGE_OPTIONS.map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className="segmented__button"
-                      aria-pressed={rangeDays === value}
-                      onClick={() => setRangeDays(value)}
-                    >
-                      {t(RANGE_LABEL_KEYS[value])}
-                    </button>
-                  ))}
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path d="M2.5 4.5h5M11 4.5h2.5M2.5 11.5h2.5M8.5 11.5h5" />
+                    <circle cx="9.6" cy="4.5" r="1.5" />
+                    <circle cx="6" cy="11.5" r="1.5" />
+                  </svg>
+                  <span>{t('home.filtersButton')}</span>
+                  <span className="mobile-filter-bar__badge">
+                    {t(RANGE_SHORT_KEYS[rangeDays])}
+                  </span>
+                </button>
+              </div>
+            ) : (
+              <div
+                className="home-toolbar"
+                role="group"
+                aria-label={t('home.filtersLabel')}
+              >
+                <div className="home-toolbar__group">
+                  <span className="home-toolbar__label">
+                    {t('home.levelLabel')}
+                  </span>
+                  <div
+                    className="filter-bar__pills"
+                    role="group"
+                    aria-label={t('home.filterLabel')}
+                  >
+                    {LEVEL_FILTERS.map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className={`filter-bar__pill${level === value ? ' filter-bar__pill--active' : ''}`}
+                        aria-pressed={level === value}
+                        onClick={() => setLevel(value)}
+                      >
+                        {value === 'all' ? t('home.filterAll') : value}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              <div className="home-toolbar__group">
-                <span
-                  className="home-toolbar__label"
-                  id="home-order-label"
-                >
-                  {t('home.orderLabel')}
-                </span>
-                <div
-                  className="segmented"
-                  role="group"
-                  aria-labelledby="home-order-label"
-                >
-                  {HOME_ORDER_OPTIONS.map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className="segmented__button"
-                      aria-pressed={order === value}
-                      onClick={() => setOrder(value)}
-                    >
-                      {t(ORDER_LABEL_KEYS[value])}
-                    </button>
-                  ))}
+                <div className="home-toolbar__group">
+                  <span
+                    className="home-toolbar__label"
+                    id="home-range-label"
+                  >
+                    {t('home.rangeLabel')}
+                  </span>
+                  <div
+                    className="segmented"
+                    role="group"
+                    aria-labelledby="home-range-label"
+                  >
+                    {HOME_RANGE_OPTIONS.map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className="segmented__button"
+                        aria-pressed={rangeDays === value}
+                        onClick={() => setRangeDays(value)}
+                      >
+                        {t(RANGE_LABEL_KEYS[value])}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {feed.entryCount > 0 && (
-                <p className="home-toolbar__count" aria-live="polite">
-                  {t('home.loadedCount', { count: feed.entryCount })}
-                </p>
-              )}
-            </div>
+                <div className="home-toolbar__group">
+                  <span
+                    className="home-toolbar__label"
+                    id="home-order-label"
+                  >
+                    {t('home.orderLabel')}
+                  </span>
+                  <div
+                    className="segmented"
+                    role="group"
+                    aria-labelledby="home-order-label"
+                  >
+                    {HOME_ORDER_OPTIONS.map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className="segmented__button"
+                        aria-pressed={order === value}
+                        onClick={() => setOrder(value)}
+                      >
+                        {t(ORDER_LABEL_KEYS[value])}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {feed.entryCount > 0 && (
+                  <p className="home-toolbar__count" aria-live="polite">
+                    {t('home.loadedCount', { count: feed.entryCount })}
+                  </p>
+                )}
+              </div>
+            )}
 
             {feed.loading && feed.entryCount === 0 && !feed.dayError && (
               <>
@@ -332,6 +390,17 @@ export default function HomePage({
           </>
         )}
       </section>
+
+      {isMobile && filtersOpen && (
+        <FilterSheet
+          rangeDays={rangeDays}
+          order={order}
+          onRangeChange={setRangeDays}
+          onOrderChange={setOrder}
+          onClose={() => setFiltersOpen(false)}
+          returnFocusRef={filterButtonRef}
+        />
+      )}
     </div>
   );
 }

@@ -1,10 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import HomePage from './HomePage';
 import { i18n } from '../i18n';
 import { loadDay, loadManifest } from '../lib/content';
+import { createMatchMediaController } from '../test/matchMedia';
 import type { ArticleIndexEntry, CefrLevel } from '../types/content';
 
 vi.mock('../lib/content', () => ({
@@ -161,6 +169,13 @@ function setViewportWidth(width: number) {
   });
 }
 
+function useMobileHome() {
+  const media = createMatchMediaController(true);
+  vi.stubGlobal('matchMedia', media.matchMedia);
+  setViewportWidth(390);
+  return media;
+}
+
 function enterRealisticViewport() {
   RealisticIntersectionObserver.targetsIntersecting = true;
   const active = [...RealisticIntersectionObserver.instances]
@@ -228,6 +243,7 @@ describe('HomePage', () => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
     setViewportWidth(DEFAULT_WIDTH);
+    document.body.style.overflow = '';
   });
 
   it('renders the French hero and only requests the first day in range', async () => {
@@ -625,6 +641,200 @@ describe('HomePage', () => {
       'lang',
       'fr',
     );
+  });
+
+  it('renders the compact mobile home with a screen-reader title and no visible count', async () => {
+    useMobileHome();
+    const { container } = renderHome();
+
+    expect(await screen.findByText('La tour Eiffel')).toBeInTheDocument();
+
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading).toHaveTextContent('Lecture en français');
+    expect(heading).toHaveClass('sr-only');
+    expect(container.querySelector('.home-hero')).toBeNull();
+    expect(container.querySelector('.home-toolbar')).toBeNull();
+    expect(container.querySelector('.mobile-filter-bar')).not.toBeNull();
+
+    for (const name of ['Tous', 'A2', 'B1', 'B2']) {
+      expect(screen.getByRole('button', { name })).toBeInTheDocument();
+    }
+    expect(screen.getByRole('button', { name: 'Tous' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    const filters = screen.getByRole('button', { name: /Filtres/ });
+    expect(filters).toHaveTextContent('3 j');
+    expect(filters).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('1 article affiché')).not.toBeInTheDocument();
+  });
+
+  it('applies period and order changes immediately in the mobile filter sheet', async () => {
+    useMobileHome();
+    renderHome();
+
+    await screen.findByText('La tour Eiffel');
+    const trigger = screen.getByRole('button', { name: /Filtres/ });
+    await userEvent.click(trigger);
+
+    const dialog = screen.getByRole('dialog', { name: 'Filtres' });
+    expect(
+      within(dialog).getByRole('button', { name: '3 jours' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      within(dialog).getByRole('button', { name: 'Plus récents' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      within(dialog).getByRole('button', { name: 'Fermer les filtres' }),
+    ).toHaveFocus();
+    expect(document.body.style.overflow).toBe('hidden');
+
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: '7 jours' }),
+    );
+    expect(
+      within(dialog).getByRole('button', { name: '7 jours' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(trigger).toHaveTextContent('7 j');
+
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Plus anciens' }),
+    );
+    await waitFor(() =>
+      expect(loadDay).toHaveBeenCalledWith('2026-11-06'),
+    );
+    expect(await screen.findByText('Le marché du samedi')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: 'Plus anciens' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Afficher les articles' }),
+    );
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(document.body.style.overflow).toBe('');
+    expect(screen.getByText('Le marché du samedi')).toBeInTheDocument();
+  });
+
+  it('traps focus in the mobile filter sheet and closes on Escape with focus return', async () => {
+    useMobileHome();
+    renderHome();
+
+    await screen.findByText('La tour Eiffel');
+    const trigger = screen.getByRole('button', { name: /Filtres/ });
+    await userEvent.click(trigger);
+
+    const dialog = screen.getByRole('dialog', { name: 'Filtres' });
+    const close = within(dialog).getByRole('button', {
+      name: 'Fermer les filtres',
+    });
+    const submit = within(dialog).getByRole('button', {
+      name: 'Afficher les articles',
+    });
+
+    expect(close).toHaveFocus();
+    expect(document.body.style.overflow).toBe('hidden');
+
+    await userEvent.tab({ shift: true });
+    expect(submit).toHaveFocus();
+
+    await userEvent.tab();
+    expect(close).toHaveFocus();
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(document.body.style.overflow).toBe('');
+  });
+
+  it('closes the mobile filter sheet on backdrop click and restores scrolling', async () => {
+    useMobileHome();
+    renderHome();
+
+    await screen.findByText('La tour Eiffel');
+    const trigger = screen.getByRole('button', { name: /Filtres/ });
+    await userEvent.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Filtres' })).toBeInTheDocument();
+    expect(document.body.style.overflow).toBe('hidden');
+
+    fireEvent.click(screen.getByTestId('filter-sheet-backdrop'));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(document.body.style.overflow).toBe('');
+  });
+
+  it('releases the mobile filter sheet and scroll lock when resizing to desktop', async () => {
+    const media = useMobileHome();
+    const { container } = renderHome();
+
+    await screen.findByText('La tour Eiffel');
+    await userEvent.click(screen.getByRole('button', { name: /Filtres/ }));
+    expect(screen.getByRole('dialog', { name: 'Filtres' })).toBeInTheDocument();
+    expect(document.body.style.overflow).toBe('hidden');
+
+    act(() => {
+      media.setMobile(false);
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    expect(document.body.style.overflow).toBe('');
+    expect(container.querySelector('.mobile-filter-bar')).toBeNull();
+    expect(container.querySelector('.home-toolbar')).not.toBeNull();
+    expect(screen.getByText('1 article affiché')).toBeInTheDocument();
+  });
+
+  it('translates the mobile filter row and sheet into Chinese', async () => {
+    useMobileHome();
+    renderHome();
+
+    await screen.findByText('La tour Eiffel');
+    await act(async () => {
+      await i18n.changeLanguage('zh');
+    });
+
+    const trigger = screen.getByRole('button', { name: /筛选/ });
+    expect(trigger).toHaveTextContent('3 天');
+    await userEvent.click(trigger);
+
+    const dialog = screen.getByRole('dialog', { name: '筛选' });
+    expect(
+      within(dialog).getByRole('button', { name: '近 3 天' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      within(dialog).getByRole('button', { name: '最新在前' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      within(dialog).getByRole('button', { name: '显示文章' }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('button', { name: '关闭筛选' }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the complete first-visit banner on mobile', async () => {
+    useMobileHome();
+    localStorage.clear();
+
+    renderHome();
+
+    expect(
+      await screen.findByRole('region', { name: 'Première visite' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/L'aide explique la lecture, les exercices/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: "Ouvrir l'aide" }),
+    ).toHaveAttribute('href', '/aide');
+    expect(screen.getByRole('button', { name: 'Fermer' })).toBeInTheDocument();
+    expect(await screen.findByText('La tour Eiffel')).toBeInTheDocument();
   });
 
   it('shows the first-visit banner when onboarding has not been seen', async () => {
