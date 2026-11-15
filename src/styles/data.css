@@ -1,4 +1,4 @@
-/* Study data page */
+/* Statistics and settings pages */
 .data-page {
   max-width: 62rem;
   padding-bottom: var(--space-12);
@@ -877,4 +877,38 @@
   .data-summary__grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
+}
+
+/* Statistics and settings split */
+.stats-page__tools {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.settings-page > .data-tools {
+  margin-top: 0;
+}
+
+.data-hero__goal-link {
+  margin-top: var(--space-3);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.data-goal--panel {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.data-card--about {
+  margin-top: var(--space-4);
+  border-left: 4px solid var(--color-accent-border);
+}
+
+.settings-about__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-size: 0.9375rem;
+  font-weight: 600;
 }

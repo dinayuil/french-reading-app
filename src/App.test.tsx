@@ -7,8 +7,12 @@ vi.mock('./pages/HomePage', () => ({
   default: () => <div data-testid="home-page">Home page</div>,
 }));
 
-vi.mock('./pages/DataPage', () => ({
-  default: () => <h1>Data page marker</h1>,
+vi.mock('./pages/StatsPage', () => ({
+  default: () => <h1>Stats page marker</h1>,
+}));
+
+vi.mock('./pages/SettingsPage', () => ({
+  default: () => <h1>Settings page marker</h1>,
 }));
 
 vi.mock('./pages/ReadPage', () => ({
@@ -37,26 +41,43 @@ afterEach(() => {
 });
 
 describe('App routes', () => {
-  it('renders the data page on /data inside the shared layout', () => {
+  it('redirects the old /data address to the statistics page', () => {
     renderAt('/data');
 
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Data page marker' }),
+      screen.getByRole('heading', { level: 1, name: 'Stats page marker' }),
     ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/stats');
     expect(
-      screen.getByRole('link', { name: 'Mes données' }),
+      screen.getByRole('link', { name: 'Statistiques' }),
     ).toHaveAttribute('aria-current', 'page');
   });
 
-  it('navigates to the data page from the navigation', async () => {
+  it('navigates to the statistics and settings pages from the navigation', async () => {
     renderAt('/');
     expect(screen.getByTestId('home-page')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('link', { name: 'Mes données' }));
+    await userEvent.click(screen.getByRole('link', { name: 'Statistiques' }));
 
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Data page marker' }),
+      screen.getByRole('heading', { level: 1, name: 'Stats page marker' }),
     ).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/data');
+    expect(window.location.pathname).toBe('/stats');
+
+    await userEvent.click(screen.getByRole('link', { name: 'Paramètres' }));
+
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Settings page marker' }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/settings');
+  });
+
+  it.each([
+    ['/aide', 'help-page'],
+    ['/licences', 'licenses-page'],
+  ])('keeps the direct address %s reachable', (path, testId) => {
+    renderAt(path);
+
+    expect(screen.getByTestId(testId)).toBeInTheDocument();
   });
 });

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-const SECTIONS = ['read', 'practice', 'language', 'data', 'license'] as const;
+const SECTIONS = ['read', 'practice', 'language', 'data'] as const;
 
 export default function HelpPage() {
   const { t } = useTranslation();
@@ -19,15 +19,11 @@ export default function HelpPage() {
             {section === 'data' && (
               <>
                 {' '}
-                <Link to="/data">{t('help.data.manageLink')}</Link>
+                <Link to="/stats">{t('help.data.statsLink')}</Link>
+                {' · '}
+                <Link to="/settings">{t('help.data.settingsLink')}</Link>
                 {' · '}
                 <Link to="/mots">{t('help.data.vocabularyLink')}</Link>
-              </>
-            )}
-            {section === 'license' && (
-              <>
-                {' '}
-                <Link to="/licences">{t('help.license.link')}</Link>
               </>
             )}
           </p>

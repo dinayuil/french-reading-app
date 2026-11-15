@@ -25,8 +25,8 @@ const TABS = [
     ),
   },
   {
-    to: '/data',
-    labelKey: 'nav.data',
+    to: '/stats',
+    labelKey: 'nav.stats',
     end: false,
     icon: (
       <svg
@@ -67,8 +67,8 @@ const TABS = [
     ),
   },
   {
-    to: '/aide',
-    labelKey: 'nav.help',
+    to: '/settings',
+    labelKey: 'nav.settings',
     end: false,
     icon: (
       <svg
@@ -77,16 +77,14 @@ const TABS = [
         viewBox="0 0 20 20"
         fill="none"
         stroke="currentColor"
-        strokeWidth="1.5"
+        strokeWidth="1.6"
+        strokeLinecap="round"
         aria-hidden="true"
         focusable="false"
       >
-        <circle cx="10" cy="10" r="7.4" />
-        <path
-          d="M8 7.7a2.1 2.1 0 1 1 3.2 1.8c-.8.5-1.2 1-1.2 1.9"
-          strokeLinecap="round"
-        />
-        <circle cx="10" cy="14.2" r=".9" fill="currentColor" stroke="none" />
+        <path d="M3.6 6.5h4.4M12 6.5h4.4M3.6 13.5h2.4M10 13.5h6.4" />
+        <circle cx="10" cy="6.5" r="2" />
+        <circle cx="7.8" cy="13.5" r="2" />
       </svg>
     ),
   },

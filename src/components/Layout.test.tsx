@@ -21,13 +21,17 @@ function renderLayout(
             element={<div data-testid="home-page">Home page</div>}
           />
           <Route
-            path="/data"
+            path="/stats"
             element={
-              <div data-testid="data-page">
-                Data page
+              <div data-testid="stats-page">
+                Stats page
                 <button type="button">Contenu suivant</button>
               </div>
             }
+          />
+          <Route
+            path="/settings"
+            element={<div data-testid="settings-page">Settings page</div>}
           />
           <Route
             path="/licences"
@@ -36,10 +40,6 @@ function renderLayout(
           <Route
             path="/mots"
             element={<div data-testid="vocabulary-page">Vocabulary page</div>}
-          />
-          <Route
-            path="/aide"
-            element={<div data-testid="help-page">Help page</div>}
           />
           <Route
             path="/read/:id"
@@ -62,7 +62,7 @@ afterEach(() => {
 });
 
 describe('Layout', () => {
-  it('renders one desktop navigation without Licences and keeps its footer link', () => {
+  it('renders one four-entry desktop navigation and no licenses links', () => {
     const { container } = renderLayout();
     const navigations = screen.getAllByRole('navigation');
 
@@ -73,21 +73,23 @@ describe('Layout', () => {
       within(navigation).getByRole('link', { name: 'Lectures' }),
     ).toHaveAttribute('href', '/');
     expect(
-      within(navigation).getByRole('link', { name: 'Mes données' }),
-    ).toHaveAttribute('href', '/data');
+      within(navigation).getByRole('link', { name: 'Statistiques' }),
+    ).toHaveAttribute('href', '/stats');
     expect(
       within(navigation).getByRole('link', { name: 'Mots' }),
     ).toHaveAttribute('href', '/mots');
     expect(
-      within(navigation).getByRole('link', { name: 'Aide' }),
-    ).toHaveAttribute('href', '/aide');
+      within(navigation).getByRole('link', { name: 'Paramètres' }),
+    ).toHaveAttribute('href', '/settings');
+    expect(
+      within(navigation).queryByRole('link', { name: 'Aide' }),
+    ).not.toBeInTheDocument();
     expect(
       within(navigation).queryByRole('link', { name: 'Licences' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Licences' })).toHaveAttribute(
-      'href',
-      '/licences',
-    );
+    expect(
+      screen.queryByRole('link', { name: 'Licences' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('group', { name: "Langue de l'interface" }),
     ).toBeInTheDocument();
@@ -103,33 +105,40 @@ describe('Layout', () => {
     await userEvent.click(screen.getByRole('button', { name: '中文' }));
 
     expect(screen.getByRole('link', { name: '阅读' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '学习数据' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '统计' })).toHaveAttribute(
       'href',
-      '/data',
+      '/stats',
     );
     expect(screen.getByRole('link', { name: '生词' })).toHaveAttribute(
       'href',
       '/mots',
     );
-    expect(screen.getByRole('link', { name: '帮助' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '设置' })).toHaveAttribute(
       'href',
-      '/aide',
+      '/settings',
     );
-    expect(screen.getByRole('link', { name: '许可' })).toHaveAttribute(
-      'href',
-      '/licences',
-    );
+    expect(screen.queryByRole('link', { name: '帮助' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '许可' })).not.toBeInTheDocument();
     expect(screen.getByTestId('home-page')).toBeInTheDocument();
     expect(screen.queryByTestId('licenses-page')).not.toBeInTheDocument();
   });
 
-  it('marks the data entry as the current page on its route', () => {
-    renderLayout('/data');
+  it('marks the statistics entry as the current page on its route', () => {
+    renderLayout('/stats');
 
     expect(
-      screen.getByRole('link', { name: 'Mes données' }),
+      screen.getByRole('link', { name: 'Statistiques' }),
     ).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByTestId('data-page')).toBeInTheDocument();
+    expect(screen.getByTestId('stats-page')).toBeInTheDocument();
+  });
+
+  it('marks the settings entry as the current page on its route', () => {
+    renderLayout('/settings');
+
+    expect(
+      screen.getByRole('link', { name: 'Paramètres' }),
+    ).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('settings-page')).toBeInTheDocument();
   });
 
   it('renders one mobile tab bar, the compact header and no footer', () => {
@@ -142,9 +151,9 @@ describe('Layout', () => {
     const links = within(navigation).getAllByRole('link');
     expect(links.map((link) => link.textContent)).toEqual([
       'Lectures',
-      'Mes données',
+      'Statistiques',
       'Mots',
-      'Aide',
+      'Paramètres',
     ]);
     expect(
       within(navigation).queryByRole('link', { name: 'Licences' }),
@@ -167,12 +176,12 @@ describe('Layout', () => {
   });
 
   it('marks the active mobile tab on its route', () => {
-    renderLayout('/data', { mobile: true });
+    renderLayout('/stats', { mobile: true });
 
     expect(
-      screen.getByRole('link', { name: 'Mes données' }),
+      screen.getByRole('link', { name: 'Statistiques' }),
     ).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByTestId('data-page')).toBeInTheDocument();
+    expect(screen.getByTestId('stats-page')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Lectures' }),
     ).not.toHaveAttribute('aria-current');
@@ -186,12 +195,12 @@ describe('Layout', () => {
     ).toHaveAttribute('aria-current', 'page');
     expect(screen.getByTestId('vocabulary-page')).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: 'Mes données' }),
+      screen.getByRole('link', { name: 'Statistiques' }),
     ).not.toHaveAttribute('aria-current');
   });
 
   it('opens the language menu, supports arrow keys and closes on selection', async () => {
-    renderLayout('/data', { mobile: true });
+    renderLayout('/stats', { mobile: true });
     const trigger = screen.getByRole('button', {
       name: 'Changer la langue (français)',
     });
@@ -224,9 +233,9 @@ describe('Layout', () => {
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
-    expect(screen.getByTestId('data-page')).toBeInTheDocument();
+    expect(screen.getByTestId('stats-page')).toBeInTheDocument();
     expect(
-      screen.getByRole('link', { name: '学习数据' }),
+      screen.getByRole('link', { name: '统计' }),
     ).toHaveAttribute('aria-current', 'page');
   });
 
@@ -247,7 +256,7 @@ describe('Layout', () => {
   });
 
   it('closes the language menu on Tab and continues in document order', async () => {
-    renderLayout('/data', { mobile: true });
+    renderLayout('/stats', { mobile: true });
     const trigger = screen.getByRole('button', {
       name: 'Changer la langue (français)',
     });

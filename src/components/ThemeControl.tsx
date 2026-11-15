@@ -52,7 +52,7 @@ export default function ThemeControl() {
       <div
         className="segmented theme-control__options"
         role="group"
-        aria-label={t('data.appearance.label')}
+        aria-label={t('settings.appearance.label')}
       >
         {(['system', 'light', 'dark'] as const).map((option) => (
           <button
@@ -63,11 +63,11 @@ export default function ThemeControl() {
             onClick={() => choose(option)}
           >
             <span className="theme-control__icon">{ICONS[option]}</span>
-            <span>{t(`data.appearance.${option}`)}</span>
+            <span>{t(`settings.appearance.${option}`)}</span>
           </button>
         ))}
       </div>
-      <p className="data-card__hint">{t('data.appearance.hint')}</p>
+      <p className="data-card__hint">{t('settings.appearance.hint')}</p>
     </div>
   );
 }

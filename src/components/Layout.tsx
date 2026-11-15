@@ -35,14 +35,14 @@ export default function Layout() {
                 <NavLink to="/" className="top-bar__link" end>
                   {t('nav.read')}
                 </NavLink>
-                <NavLink to="/data" className="top-bar__link">
-                  {t('nav.data')}
+                <NavLink to="/stats" className="top-bar__link">
+                  {t('nav.stats')}
                 </NavLink>
                 <NavLink to="/mots" className="top-bar__link">
                   {t('nav.vocabulary')}
                 </NavLink>
-                <NavLink to="/aide" className="top-bar__link">
-                  {t('nav.help')}
+                <NavLink to="/settings" className="top-bar__link">
+                  {t('nav.settings')}
                 </NavLink>
               </nav>
               <LanguageSwitch />
@@ -61,9 +61,6 @@ export default function Layout() {
         <footer className="site-footer">
           <div className="container site-footer__inner">
             <p>© {new Date().getFullYear()} Lire en français</p>
-            <Link to="/licences" className="site-footer__link">
-              {t('nav.licenses')}
-            </Link>
           </div>
         </footer>
       )}

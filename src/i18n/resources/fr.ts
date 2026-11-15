@@ -6,10 +6,9 @@ const fr = {
   nav: {
     label: 'Navigation principale',
     read: 'Lectures',
-    data: 'Mes données',
+    stats: 'Statistiques',
     vocabulary: 'Mots',
-    help: 'Aide',
-    licenses: 'Licences',
+    settings: 'Paramètres',
   },
   language: {
     label: "Langue de l'interface",
@@ -131,9 +130,18 @@ const fr = {
     termAria: '{{term}} : {{explanation}}',
   },
   data: {
-    title: 'Mes données',
+    duration: {
+      hoursMinutes: '{{hours}} h {{minutes}}',
+      hours: '{{hours}} h',
+      minutes: '{{minutes}} min',
+      underMinute: '< 1 min',
+      zero: '0 min',
+    },
+  },
+  stats: {
+    title: 'Statistiques',
     lede:
-      "Votre rythme de lecture, vos objectifs et vos préférences, sans compte ni serveur.",
+      "Votre activité d'apprentissage et votre progression vers l'objectif du jour.",
     hero: {
       today: "Aujourd'hui",
       completed_one: 'article terminé',
@@ -141,14 +149,7 @@ const fr = {
       studyTime: "Temps d'étude aujourd'hui",
       goalProgress: '{{done}} sur {{goal}}',
       goalReached: 'Objectif atteint',
-    },
-    goal: {
-      title: 'Objectif quotidien',
-      label: 'Articles à terminer par jour',
-      decrease: "Réduire l'objectif quotidien",
-      increase: "Augmenter l'objectif quotidien",
-      value: 'Objectif : {{goal}} par jour',
-      hint: "Un article compte une fois par jour, à la validation de l'exercice.",
+      goalSettingsLink: "Modifier l'objectif dans les paramètres",
     },
     chart: {
       title: 'Derniers jours',
@@ -171,15 +172,6 @@ const fr = {
       activeDays: 'Jours actifs ({{range}})',
       empty: 'Votre activité apparaîtra après votre première lecture.',
     },
-    appearance: {
-      title: 'Apparence',
-      body: 'Choisissez un thème clair, sombre, ou suivez le réglage de votre appareil.',
-      label: "Thème de l'interface",
-      system: 'Système',
-      light: 'Clair',
-      dark: 'Sombre',
-      hint: 'Votre choix est enregistré sur cet appareil.',
-    },
     share: {
       title: 'Partager mes progrès',
       body: "Créez une image avec les articles terminés aujourd'hui et les sept derniers jours.",
@@ -193,17 +185,32 @@ const fr = {
       error: "Impossible de créer ou d'enregistrer l'image. Réessayez.",
       hint: "L'image ne contient ni vos réponses ni vos identifiants.",
     },
-    duration: {
-      hoursMinutes: '{{hours}} h {{minutes}}',
-      hours: '{{hours}} h',
-      minutes: '{{minutes}} min',
-      underMinute: '< 1 min',
-      zero: '0 min',
+  },
+  settings: {
+    title: 'Paramètres',
+    lede: 'Objectif quotidien, apparence, sauvegardes et synchronisation.',
+    goal: {
+      title: 'Objectif quotidien',
+      body: "Choisissez le nombre d'articles à terminer chaque jour.",
+      label: 'Articles à terminer par jour',
+      decrease: "Réduire l'objectif quotidien",
+      increase: "Augmenter l'objectif quotidien",
+      value: 'Objectif : {{goal}} par jour',
+      hint: "Un article compte une fois par jour, à la validation de l'exercice.",
+    },
+    appearance: {
+      title: 'Apparence',
+      body: 'Choisissez un thème clair, sombre, ou suivez le réglage de votre appareil.',
+      label: "Thème de l'interface",
+      system: 'Système',
+      light: 'Clair',
+      dark: 'Sombre',
+      hint: 'Votre choix est enregistré sur cet appareil.',
     },
     export: {
       title: 'Exporter',
       body: 'Téléchargez vos lectures, vos exercices, votre carnet de mots et vos réglages dans un seul fichier.',
-      button: 'Exporter mes données',
+      button: 'Exporter la sauvegarde',
       success: 'Sauvegarde exportée.',
       error: "L'export a échoué. Réessayez.",
     },
@@ -274,6 +281,12 @@ const fr = {
         generic: 'La synchronisation a échoué. Réessayez.',
       },
     },
+    about: {
+      title: 'À propos',
+      body: "L'aide explique la lecture et les exercices. La page des licences détaille les sources des textes et leurs conditions de réutilisation.",
+      helpLink: "Ouvrir l'aide",
+      licensesLink: 'Licences et sources',
+    },
   },
   vocabulary: {
     title: 'Mon carnet de mots',
@@ -342,14 +355,10 @@ const fr = {
     },
     data: {
       title: 'Données',
-      body: "Vos réglages, vos réponses et vos mots marqués sont conservés dans le stockage local de votre navigateur. La page « Mes données » permet de consulter votre activité, d'exporter une sauvegarde et de la réimporter sur un autre appareil. Dans l'application Android, elle permet aussi de synchroniser vos données avec votre propre dossier WebDAV ; le site web ne propose pas cette synchronisation. Effacer les données du site les supprime définitivement. Les clés utilisées commencent par « frp: ». La traduction du texte sélectionné est assurée par le service tiers MyMemory (api.mymemory.translated.net) : le passage sélectionné lui est transmis pour obtenir une traduction du français vers le chinois. Ce service public, utilisé sans clé d'API, peut être limité ou indisponible ; la traduction n'apparaît alors pas, sans bloquer la lecture. Le carnet de mots ne reçoit que les expressions ajoutées explicitement ; les mots marqués pendant un exercice n'y entrent pas automatiquement. L'apparence et l'objectif quotidien se règlent dans « Mes données », où vous pouvez aussi générer une image de vos progrès.",
-      manageLink: 'Ouvrir Mes données',
+      body: "Vos réglages, vos réponses et vos mots marqués sont conservés dans le stockage local de votre navigateur. La page « Statistiques » présente votre activité et l'objectif du jour ; la page « Paramètres » permet de modifier cet objectif et l'apparence, d'exporter une sauvegarde et de la réimporter sur un autre appareil. Dans l'application Android, elle permet aussi de synchroniser vos données avec votre propre dossier WebDAV ; le site web ne propose pas cette synchronisation. Effacer les données du site les supprime définitivement. Les clés utilisées commencent par « frp: ». La traduction du texte sélectionné est assurée par le service tiers MyMemory (api.mymemory.translated.net) : le passage sélectionné lui est transmis pour obtenir une traduction du français vers le chinois. Ce service public, utilisé sans clé d'API, peut être limité ou indisponible ; la traduction n'apparaît alors pas, sans bloquer la lecture. Le carnet de mots ne reçoit que les expressions ajoutées explicitement ; les mots marqués pendant un exercice n'y entrent pas automatiquement. Les licences et sources sont accessibles depuis « Paramètres », section « À propos ».",
+      statsLink: 'Voir les statistiques',
+      settingsLink: 'Ouvrir les paramètres',
       vocabularyLink: 'Ouvrir le carnet de mots',
-    },
-    license: {
-      title: 'Licences',
-      body: 'Les sources et les conditions de réutilisation des textes sont détaillées sur la page des licences.',
-      link: 'Voir les licences',
     },
     backToRead: 'Retour aux lectures',
   },
@@ -374,7 +383,7 @@ const fr = {
   },
   onboarding: {
     title: 'Première visite',
-    body: "L'aide explique la lecture, les exercices et le choix de la langue. Vous pouvez la consulter à tout moment depuis le menu.",
+    body: "L'aide explique la lecture, les exercices et le choix de la langue. Vous pouvez la consulter à tout moment depuis la page Paramètres, section À propos.",
     openHelp: "Ouvrir l'aide",
     dismiss: 'Fermer',
   },
