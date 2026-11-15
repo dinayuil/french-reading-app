@@ -45,6 +45,28 @@ const TABS = [
     ),
   },
   {
+    to: '/mots',
+    labelKey: 'nav.vocabulary',
+    end: false,
+    icon: (
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path d="M5 3.2h10a1 1 0 0 1 1 1v12.6l-6-3.2-6 3.2V4.2a1 1 0 0 1 1-1Z" />
+        <path d="M7.4 7h5.2" />
+      </svg>
+    ),
+  },
+  {
     to: '/aide',
     labelKey: 'nav.help',
     end: false,

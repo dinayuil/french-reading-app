@@ -21,6 +21,11 @@ export interface VisibleDurationOptions {
    * counting, so it passes `false`.
    */
   pauseWhenHidden?: boolean;
+  /**
+   * Time already accumulated before this mount (for example a restored
+   * practice draft). It is included in the first reported value.
+   */
+  initialElapsedMs?: number;
 }
 
 export function useVisibleDuration(
@@ -28,10 +33,13 @@ export function useVisibleDuration(
   tickMs?: number,
   options: VisibleDurationOptions = {},
 ): { elapsedMs: number; getElapsedMs: () => number } {
-  const { pauseWhenHidden = true } = options;
-  const [elapsedMs, setElapsedMs] = useState(0);
+  const { pauseWhenHidden = true, initialElapsedMs = 0 } = options;
+  const initial = Number.isFinite(initialElapsedMs)
+    ? Math.max(0, initialElapsedMs)
+    : 0;
+  const [elapsedMs, setElapsedMs] = useState(initial);
   const startRef = useRef<number | null>(null);
-  const accRef = useRef(0);
+  const accRef = useRef(initial);
 
   const getElapsedMs = useCallback(() => {
     if (startRef.current !== null) {

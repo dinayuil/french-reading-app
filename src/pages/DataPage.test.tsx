@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   MemoryRouter,
@@ -13,7 +13,10 @@ import * as backup from '../features/data/backup';
 import * as files from '../platform/files';
 import * as runtime from '../platform/runtime';
 import * as webdav from '../features/sync/webdav';
+import * as share from '../features/share/shareCard';
+import { localDateKey } from '../features/stats/statistics';
 import type { StudyBackup, StudyData } from '../features/data/backup';
+import type { VocabularyEntry } from '../types/progress';
 
 vi.mock('../features/data/backup', () => ({
   MAX_BACKUP_BYTES: 10 * 1024 * 1024,
@@ -28,6 +31,12 @@ vi.mock('../features/data/backup', () => ({
 
 vi.mock('../platform/files', () => ({
   exportDataFile: vi.fn(),
+  exportPngFile: vi.fn(),
+}));
+
+vi.mock('../features/share/shareCard', () => ({
+  buildShareCardModel: vi.fn(() => ({ title: 'Mes progrès' })),
+  renderShareCardPng: vi.fn(async () => new Blob(['png'], { type: 'image/png' })),
 }));
 
 vi.mock('../platform/runtime', () => ({
@@ -100,6 +109,17 @@ const SUMMARY = {
   totalAnswers: 9,
 };
 
+const VOCABULARY_ENTRY: VocabularyEntry = {
+  id: 'vocab-1',
+  term: 'flâner',
+  translation: '漫步',
+  context: 'Il aime flâner.',
+  articleId: 'article-1',
+  articleTitle: 'Un article',
+  createdAt: '2026-11-10T09:00:00.000Z',
+  updatedAt: '2026-11-10T09:00:00.000Z',
+};
+
 function renderPage() {
   return render(
     <MemoryRouter>
@@ -153,6 +173,11 @@ function summaryRegion() {
   return screen.getByRole('region', { name: 'Votre activité' });
 }
 
+function summaryValue(label: string): HTMLElement | null {
+  const term = within(summaryRegion()).getByText(label);
+  return term.closest('.data-summary__item')?.querySelector('dd') ?? null;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(runtime.isNativeApp).mockReturnValue(false);
@@ -162,10 +187,19 @@ beforeEach(() => {
   vi.mocked(backup.parseBackup).mockReturnValue(BACKUP);
   vi.mocked(backup.hasPreviousBackup).mockReturnValue(false);
   vi.mocked(files.exportDataFile).mockResolvedValue(undefined);
+  vi.mocked(files.exportPngFile).mockResolvedValue(undefined);
+  vi.mocked(share.renderShareCardPng).mockResolvedValue(
+    new Blob(['png'], { type: 'image/png' }),
+  );
   vi.mocked(webdav.loadWebDavSettings).mockReturnValue({
     url: '',
     username: '',
   });
+});
+
+afterEach(() => {
+  document.documentElement.removeAttribute('data-theme');
+  document.documentElement.style.colorScheme = '';
 });
 
 describe('DataPage', () => {
@@ -180,9 +214,9 @@ describe('DataPage', () => {
     expect(summary.getByText('Temps de lecture')).toBeInTheDocument();
     expect(summary.getByText('1 h 30')).toBeInTheDocument();
     expect(summary.getByText('Articles lus')).toBeInTheDocument();
-    expect(summary.getByText('3')).toBeInTheDocument();
+    expect(summaryValue('Articles lus')).toHaveTextContent('3');
     expect(summary.getByText('Exercices terminés')).toBeInTheDocument();
-    expect(summary.getByText('2')).toBeInTheDocument();
+    expect(summaryValue('Exercices terminés')).toHaveTextContent('2');
     expect(summary.getByText('Taux de réussite')).toBeInTheDocument();
     expect(summary.getByText(/78/)).toBeInTheDocument();
 
@@ -555,6 +589,188 @@ describe('DataPage', () => {
       within(region).getByRole('button', { name: 'Synchroniser' }),
     ).toBeEnabled();
     expect(backup.readStudyData).toHaveBeenCalledTimes(1);
+  });
+
+  it('adjusts the daily goal between 1 and 20 and stores it', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const increase = screen.getByRole('button', {
+      name: "Augmenter l'objectif quotidien",
+    });
+    const decrease = screen.getByRole('button', {
+      name: "Réduire l'objectif quotidien",
+    });
+    const slider = screen.getByRole('slider', {
+      name: 'Objectif quotidien',
+    });
+
+    expect(decrease).toBeDisabled();
+    await user.click(increase);
+    await user.click(increase);
+
+    expect(screen.getByText('Objectif : 3 par jour')).toBeInTheDocument();
+    expect(
+      JSON.parse(localStorage.getItem('frp:settings') ?? '{}'),
+    ).toMatchObject({ dailyGoal: 3 });
+
+    fireEvent.change(slider, { target: { value: '20' } });
+    expect(screen.getByText('Objectif : 20 par jour')).toBeInTheDocument();
+    expect(increase).toBeDisabled();
+
+    fireEvent.change(slider, { target: { value: '1' } });
+    expect(screen.getByText('Objectif : 1 par jour')).toBeInTheDocument();
+    expect(decrease).toBeDisabled();
+  });
+
+  it('shows today against the goal and switches between seven and thirty days', async () => {
+    const now = new Date();
+    const day = localDateKey(now);
+    const startedAt = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      10,
+      0,
+      0,
+    ).toISOString();
+    localStorage.setItem(
+      'frp:settings',
+      JSON.stringify({ ...SETTINGS, dailyGoal: 3 }),
+    );
+    vi.mocked(backup.readStudyData).mockReturnValue({
+      ...STUDY_DATA,
+      practiceSessions: [
+        {
+          id: 'today-1',
+          articleId: 'article-1',
+          startedAt,
+          durationMs: 120_000,
+          completedAt: startedAt,
+          completedDay: day,
+          score: 1,
+          total: 1,
+          answers: [{ questionId: 'q1', selectedIndex: 0, correct: true }],
+          markedWords: [],
+        },
+        {
+          id: 'today-2',
+          articleId: 'article-2',
+          startedAt,
+          durationMs: 180_000,
+          completedAt: startedAt,
+          completedDay: day,
+          score: 1,
+          total: 1,
+          answers: [{ questionId: 'q1', selectedIndex: 0, correct: true }],
+          markedWords: [],
+        },
+        {
+          id: 'today-3-same-article',
+          articleId: 'article-1',
+          startedAt,
+          durationMs: 60_000,
+          completedAt: startedAt,
+          completedDay: day,
+          score: 1,
+          total: 1,
+          answers: [{ questionId: 'q1', selectedIndex: 0, correct: true }],
+          markedWords: [],
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    const progress = screen.getByRole('progressbar');
+    expect(progress).toHaveAttribute('aria-valuenow', '2');
+    expect(progress).toHaveAttribute('aria-valuemax', '3');
+    expect(screen.getByText('articles terminés')).toBeInTheDocument();
+
+    const chart = screen.getByRole('list', { name: 'Derniers jours' });
+    expect(within(chart).getAllByRole('listitem')).toHaveLength(7);
+
+    await user.click(screen.getByRole('button', { name: '30 jours' }));
+    expect(
+      within(screen.getByRole('list', { name: 'Derniers jours' })).getAllByRole(
+        'listitem',
+      ),
+    ).toHaveLength(30);
+  });
+
+  it('includes vocabulary in the import preview', async () => {
+    vi.mocked(backup.parseBackup).mockReturnValue({
+      ...BACKUP,
+      data: { ...STUDY_DATA, vocabulary: [VOCABULARY_ENTRY] },
+    });
+    renderPage();
+
+    await uploadBackup();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Aperçu du fichier' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('1 mot dans le carnet')).toBeInTheDocument();
+  });
+
+  it('creates and saves a PNG progress card and reports success', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      screen.getByRole('button', { name: "Enregistrer l'image" }),
+    );
+
+    await waitFor(() => expect(files.exportPngFile).toHaveBeenCalledTimes(1));
+    const [filename, blob] = vi.mocked(files.exportPngFile).mock.calls[0];
+    expect(filename).toMatch(
+      /^lire-en-francais-progres-\d{4}-\d{2}-\d{2}\.png$/,
+    );
+    expect(blob).toBeInstanceOf(Blob);
+    expect(share.buildShareCardModel).toHaveBeenCalledWith(
+      expect.anything(),
+      1,
+      'fr',
+      expect.any(Function),
+    );
+    expect(screen.getByText('Image enregistrée.')).toBeInTheDocument();
+  });
+
+  it('reports a failed PNG card without claiming success', async () => {
+    const user = userEvent.setup();
+    vi.mocked(share.renderShareCardPng).mockRejectedValueOnce(
+      new Error('canvas unavailable'),
+    );
+    renderPage();
+
+    await user.click(
+      screen.getByRole('button', { name: "Enregistrer l'image" }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Impossible de créer ou d'enregistrer/,
+    );
+    expect(files.exportPngFile).not.toHaveBeenCalled();
+  });
+
+  it('applies and persists an explicit theme', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Sombre' }));
+
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(
+      JSON.parse(localStorage.getItem('frp:settings') ?? '{}'),
+    ).toMatchObject({ theme: 'dark' });
+    expect(
+      screen.getByRole('button', { name: 'Sombre' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Système' }));
+    expect(
+      JSON.parse(localStorage.getItem('frp:settings') ?? '{}'),
+    ).toMatchObject({ theme: 'system' });
   });
 
   it('switches the whole page to Chinese', async () => {

@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage';
 import LicensesPage from './pages/LicensesPage';
 import PracticePage from './pages/PracticePage';
 import ReadPage from './pages/ReadPage';
+import VocabularyPage from './pages/VocabularyPage';
 import { appBasename } from './lib/basename';
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="/read/:id" element={<ReadPage />} />
           <Route path="/practice/:id" element={<PracticePage />} />
           <Route path="/data" element={<DataPage />} />
+          <Route path="/mots" element={<VocabularyPage />} />
           <Route path="/aide" element={<HelpPage />} />
           <Route path="/licences" element={<LicensesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -34,6 +34,10 @@ function renderLayout(
             element={<div data-testid="licenses-page">Licenses page</div>}
           />
           <Route
+            path="/mots"
+            element={<div data-testid="vocabulary-page">Vocabulary page</div>}
+          />
+          <Route
             path="/aide"
             element={<div data-testid="help-page">Help page</div>}
           />
@@ -72,6 +76,9 @@ describe('Layout', () => {
       within(navigation).getByRole('link', { name: 'Mes données' }),
     ).toHaveAttribute('href', '/data');
     expect(
+      within(navigation).getByRole('link', { name: 'Mots' }),
+    ).toHaveAttribute('href', '/mots');
+    expect(
       within(navigation).getByRole('link', { name: 'Aide' }),
     ).toHaveAttribute('href', '/aide');
     expect(
@@ -99,6 +106,10 @@ describe('Layout', () => {
     expect(screen.getByRole('link', { name: '学习数据' })).toHaveAttribute(
       'href',
       '/data',
+    );
+    expect(screen.getByRole('link', { name: '生词' })).toHaveAttribute(
+      'href',
+      '/mots',
     );
     expect(screen.getByRole('link', { name: '帮助' })).toHaveAttribute(
       'href',
@@ -132,6 +143,7 @@ describe('Layout', () => {
     expect(links.map((link) => link.textContent)).toEqual([
       'Lectures',
       'Mes données',
+      'Mots',
       'Aide',
     ]);
     expect(
@@ -163,6 +175,18 @@ describe('Layout', () => {
     expect(screen.getByTestId('data-page')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'Lectures' }),
+    ).not.toHaveAttribute('aria-current');
+  });
+
+  it('marks the vocabulary tab on its route', () => {
+    renderLayout('/mots', { mobile: true });
+
+    expect(
+      screen.getByRole('link', { name: 'Mots' }),
+    ).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('vocabulary-page')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Mes données' }),
     ).not.toHaveAttribute('aria-current');
   });
 

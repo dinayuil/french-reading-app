@@ -8,8 +8,15 @@ import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { resolveArticleById } from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
+import { findArticleSentenceContext } from '../lib/articleContext';
 import { useReadingProgress } from '../features/reading/useReadingProgress';
 import { useReadingSession } from '../features/reading/useReadingSession';
+import { useArticleSelection } from '../features/reading/useArticleSelection';
+import {
+  addVocabulary,
+  updateVocabulary,
+} from '../features/vocabulary/vocabulary';
+import { notifyStudyDataChanged } from '../lib/studyDataEvents';
 import ErrorState from '../components/ErrorState';
 import GlossaryText from '../components/GlossaryText';
 import LevelBadge from '../components/LevelBadge';
@@ -26,7 +33,7 @@ type LoadState =
 
 type PanelState =
   | { kind: 'glossary'; term: string; explanation: string }
-  | { kind: 'translation'; text: string }
+  | { kind: 'translation'; text: string; context?: string }
   | null;
 
 type TranslationStatus =
@@ -34,6 +41,10 @@ type TranslationStatus =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'success'; result: string };
+
+type PanelNotice =
+  | { tone: 'success' | 'error'; text: string }
+  | null;
 
 export default function ReadPage() {
   const { t } = useTranslation();
@@ -90,11 +101,14 @@ function ArticleReader({ article }: { article: Article }) {
   const translation = article.translations.zh;
   const [showZh, setShowZh] = useState(false);
   const [panel, setPanel] = useState<PanelState>(null);
-  const [selection, setSelection] = useState<string | null>(null);
   const [translationStatus, setTranslationStatus] = useState<TranslationStatus>({
     kind: 'idle',
   });
-  const panelRef = useRef<HTMLElement>(null);
+  const [addedTerm, setAddedTerm] = useState<string | null>(null);
+  const [addError, setAddError] = useState(false);
+  const [panelNotice, setPanelNotice] = useState<PanelNotice>(null);
+  const articleBodyRef = useRef<HTMLDivElement>(null);
+  const { selection, clearSelection } = useArticleSelection(articleBodyRef);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const lastTermButtonRef = useRef<HTMLButtonElement | null>(null);
   const translationRequestRef = useRef(0);
@@ -102,20 +116,27 @@ function ArticleReader({ article }: { article: Article }) {
   useReadingProgress(article.id);
 
   useEffect(() => {
-    const handleMouseUp = () => {
-      const selected = window.getSelection()?.toString().trim() || '';
-      setSelection(selected || null);
+    if (!panel) return;
+    closeButtonRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (lastTermButtonRef.current) {
+        lastTermButtonRef.current.focus({ preventScroll: true });
+        lastTermButtonRef.current = null;
+      }
     };
-
-    document.addEventListener('mouseup', handleMouseUp);
-    return () => document.removeEventListener('mouseup', handleMouseUp);
-  }, []);
+  }, [panel]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && panel) {
+    setAddedTerm(null);
+    setAddError(false);
+  }, [selection?.text]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && panel) {
         translationRequestRef.current += 1;
         setPanel(null);
+        setPanelNotice(null);
         setTranslationStatus({ kind: 'idle' });
       }
     };
@@ -130,29 +151,17 @@ function ArticleReader({ article }: { article: Article }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (panel) {
-      closeButtonRef.current?.focus();
-      // Use a small delay to ensure the panel is in the layout before scrolling.
-      const timer = window.setTimeout(() => {
-        panelRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-      }, 0);
-      return () => window.clearTimeout(timer);
-    }
-    if (lastTermButtonRef.current) {
-      lastTermButtonRef.current.focus();
-      lastTermButtonRef.current = null;
-    }
-    return;
-  }, [panel]);
-
   const handleLookup = (term: string, explanation: string) => {
     const active = document.activeElement;
-    if (active instanceof HTMLButtonElement && active.classList.contains('gloss-term')) {
+    if (
+      active instanceof HTMLButtonElement &&
+      active.classList.contains('gloss-term')
+    ) {
       lastTermButtonRef.current = active;
     }
     translationRequestRef.current += 1;
     setPanel({ kind: 'glossary', term, explanation });
+    setPanelNotice(null);
     setTranslationStatus({ kind: 'idle' });
   };
 
@@ -170,20 +179,96 @@ function ArticleReader({ article }: { article: Article }) {
 
   const handleTranslateSelection = async () => {
     if (!selection) return;
-    setPanel({ kind: 'translation', text: selection });
-    await runTranslation(selection);
+    setPanel({
+      kind: 'translation',
+      text: selection.text,
+      context: selection.context,
+    });
+    setPanelNotice(null);
+    await runTranslation(selection.text);
   };
 
-  const handleLookupTranslation = () => {
-    if (panel?.kind !== 'glossary') return;
-    runTranslation(panel.term);
+  const storeWord = (
+    term: string,
+    context: string | undefined,
+    translationText: string | undefined,
+  ): boolean => {
+    try {
+      const entry = addVocabulary({
+        term,
+        translation: translationText,
+        context,
+        articleId: article.id,
+        articleTitle: article.title,
+      });
+      if (translationText && entry.translation !== translationText) {
+        updateVocabulary(entry.id, { translation: translationText });
+      }
+    } catch {
+      return false;
+    }
+    notifyStudyDataChanged();
+    return true;
+  };
+
+  const handleAddSelection = () => {
+    if (!selection) return;
+    setAddError(false);
+    if (
+      !storeWord(
+        selection.text,
+        selection.context ??
+          findArticleSentenceContext(article, selection.text),
+        undefined,
+      )
+    ) {
+      setAddError(true);
+      return;
+    }
+    setAddedTerm(selection.text);
+  };
+
+  const handleAddFromPanel = () => {
+    if (!panel) return;
+    const term = panel.kind === 'glossary' ? panel.term : panel.text;
+    const context =
+      panel.kind === 'translation'
+        ? panel.context ?? findArticleSentenceContext(article, panel.text)
+        : findArticleSentenceContext(article, panel.term);
+    const translated =
+      panel.kind === 'glossary'
+        ? panel.explanation
+        : translationStatus.kind === 'success'
+          ? translationStatus.result
+          : undefined;
+
+    setPanelNotice(null);
+    if (!storeWord(term, context, translated)) {
+      setPanelNotice({ tone: 'error', text: t('read.addVocabularyError') });
+      return;
+    }
+    setPanelNotice({ tone: 'success', text: t('read.addedToVocabulary') });
   };
 
   const closePanel = () => {
     translationRequestRef.current += 1;
     setPanel(null);
+    setPanelNotice(null);
     setTranslationStatus({ kind: 'idle' });
   };
+
+  const clearArticleSelection = () => {
+    window.getSelection()?.removeAllRanges();
+    clearSelection();
+  };
+
+  const panelTerm = panel?.kind === 'glossary' ? panel.term : panel?.text;
+  const panelAddLabel =
+    panel?.kind === 'glossary'
+      ? t('read.addGlossaryToVocabulary')
+      : translationStatus.kind === 'success'
+        ? t('read.addWithTranslation')
+        : t('read.addToVocabulary');
 
   return (
     <article className="read-page">
@@ -241,7 +326,11 @@ function ArticleReader({ article }: { article: Article }) {
 
         {article.image && <ArticleImage image={article.image} />}
 
-        <div className="article-body" data-testid="article-body">
+        <div
+          ref={articleBodyRef}
+          className="article-body"
+          data-testid="article-body"
+        >
           {article.paragraphs.map((paragraph, pIndex) => (
             <p key={pIndex} className="article-paragraph">
               {paragraph.sentences.map((sentence, sIndex) => (
@@ -272,21 +361,53 @@ function ArticleReader({ article }: { article: Article }) {
           ))}
         </div>
 
-        {selection && (
-          <div className="selection-toolbar">
-            <button
-              type="button"
-              className="selection-toolbar__button"
-              onClick={handleTranslateSelection}
-            >
-              {t('read.translateSelection')}
-            </button>
+        {selection && !panel && (
+          <div
+            className="selection-toolbar"
+            role="toolbar"
+            aria-label={t('read.selectionActions')}
+          >
+            <div className="selection-toolbar__actions">
+              <button
+                type="button"
+                className="selection-toolbar__button"
+                onClick={handleTranslateSelection}
+              >
+                {t('read.translateSelection')}
+              </button>
+              <button
+                type="button"
+                className="selection-toolbar__button selection-toolbar__button--secondary"
+                onClick={handleAddSelection}
+                disabled={addedTerm === selection.text}
+              >
+                {addedTerm === selection.text
+                  ? t('read.added')
+                  : t('read.addToVocabulary')}
+              </button>
+            </div>
+            {addError && (
+              <p className="selection-toolbar__error" role="alert">
+                {t('read.addVocabularyError')}
+              </p>
+            )}
+            {addedTerm === selection.text && (
+              <p className="selection-toolbar__status" role="status">
+                {t('read.addedToVocabulary')}{' '}
+                <Link
+                  to="/mots"
+                  onClick={clearArticleSelection}
+                  className="selection-toolbar__link"
+                >
+                  {t('read.viewVocabulary')}
+                </Link>
+              </p>
+            )}
           </div>
         )}
 
-        {panel && (
+        {panel && panelTerm && (
           <aside
-            ref={panelRef}
             className="explanation-panel"
             role="dialog"
             aria-label={t('read.explanationTitle')}
@@ -303,17 +424,12 @@ function ArticleReader({ article }: { article: Article }) {
             </button>
             {panel.kind === 'glossary' ? (
               <>
-                <h2 className="explanation-panel__term">{panel.term}</h2>
-                <p className="explanation-panel__explanation">
+                <h2 className="explanation-panel__term" lang="fr">
+                  {panel.term}
+                </h2>
+                <p className="explanation-panel__explanation" lang="zh-CN">
                   {panel.explanation}
                 </p>
-                <button
-                  type="button"
-                  className="explanation-panel__action"
-                  onClick={handleLookupTranslation}
-                >
-                  {t('read.translate')}
-                </button>
               </>
             ) : (
               <>
@@ -324,6 +440,44 @@ function ArticleReader({ article }: { article: Article }) {
                   {panel.text}
                 </h2>
               </>
+            )}
+            <div className="explanation-panel__actions">
+              {panel.kind === 'glossary' && (
+                <button
+                  type="button"
+                  className="explanation-panel__action"
+                  onClick={() => runTranslation(panel.term)}
+                >
+                  {t('read.translate')}
+                </button>
+              )}
+              <button
+                type="button"
+                className="explanation-panel__action explanation-panel__action--primary"
+                onClick={handleAddFromPanel}
+              >
+                {panelAddLabel}
+              </button>
+            </div>
+            {panelNotice && (
+              <p
+                className={`explanation-panel__notice explanation-panel__notice--${panelNotice.tone}`}
+                role={panelNotice.tone === 'error' ? 'alert' : 'status'}
+              >
+                {panelNotice.text}
+                {panelNotice.tone === 'success' && (
+                  <>
+                    {' '}
+                    <Link
+                      to="/mots"
+                      onClick={clearArticleSelection}
+                      className="explanation-panel__link"
+                    >
+                      {t('read.viewVocabulary')}
+                    </Link>
+                  </>
+                )}
+              </p>
             )}
             <div className="explanation-panel__translation">
               {translationStatus.kind === 'loading' && (
@@ -337,7 +491,7 @@ function ArticleReader({ article }: { article: Article }) {
                 </p>
               )}
               {translationStatus.kind === 'success' && (
-                <p className="explanation-panel__result">
+                <p className="explanation-panel__result" lang="zh-CN">
                   {translationStatus.result}
                 </p>
               )}

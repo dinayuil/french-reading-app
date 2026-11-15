@@ -11,6 +11,7 @@ import {
   getReadingProgress,
   saveReadingProgress,
 } from '../features/data/studyData';
+import { listVocabulary } from '../features/vocabulary/vocabulary';
 import type { Article, ArticleImage } from '../types/content';
 
 vi.mock('../lib/content', () => ({
@@ -97,6 +98,39 @@ function renderRead(path = '/read/2026-11-09-tour-eiffel') {
       </Routes>
     </MemoryRouter>,
   );
+}
+
+function mockSelection(
+  text: string,
+  getNode: () => Element | null = () =>
+    document.querySelector('.sentence-fr'),
+) {
+  let selectedText = text;
+  const selection = {
+    toString: () => selectedText,
+    get isCollapsed() {
+      return selectedText.length === 0;
+    },
+    get anchorNode() {
+      return selectedText ? getNode() : null;
+    },
+    get focusNode() {
+      return selectedText ? getNode() : null;
+    },
+    get rangeCount() {
+      return selectedText ? 1 : 0;
+    },
+    getRangeAt: () => ({
+      startContainer: getNode(),
+      endContainer: getNode(),
+    }),
+    removeAllRanges: () => {
+      selectedText = '';
+    },
+  };
+
+  vi.stubGlobal('getSelection', vi.fn(() => selection));
+  return selection;
 }
 
 describe('ReadPage', () => {
@@ -396,16 +430,7 @@ describe('ReadPage', () => {
 
   it('shows translation button and looks up selected text', async () => {
     vi.mocked(lookupFrToZh).mockResolvedValue('巴黎');
-
-    vi.stubGlobal(
-      'getSelection',
-      vi.fn().mockReturnValue({
-        toString: () => 'Paris',
-        rangeCount: 1,
-        getRangeAt: () => ({}),
-        removeAllRanges: () => {},
-      }),
-    );
+    mockSelection('Paris');
 
     renderRead();
 
@@ -454,18 +479,78 @@ describe('ReadPage', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('巴黎市');
   });
 
+  it('adds a selected word to the notebook only after the explicit action', async () => {
+    mockSelection('Paris');
+    renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(screen.getByTestId('article-body'));
+    expect(listVocabulary()).toHaveLength(0);
+
+    const add = await screen.findByRole('button', {
+      name: 'Ajouter au carnet',
+    });
+    await userEvent.click(add);
+
+    const [entry] = listVocabulary();
+    expect(entry).toMatchObject({
+      term: 'Paris',
+      context: 'La tour Eiffel est situé à Paris.',
+      articleId: article.id,
+      articleTitle: article.title,
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Ajouté au carnet.');
+    expect(
+      screen.getByRole('link', { name: 'Voir le carnet' }),
+    ).toHaveAttribute('href', '/mots');
+  });
+
+  it('stores the original source sentence when adding a glossary term', async () => {
+    renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /situé/ }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Ajouter ce mot au carnet' }),
+    );
+
+    expect(listVocabulary()[0]).toMatchObject({
+      term: 'situé',
+      translation: '位于，坐落在',
+      context: 'La tour Eiffel est situé à Paris.',
+      articleId: article.id,
+      articleTitle: article.title,
+    });
+  });
+
+  it('saves the translation returned by the lookup panel when asked', async () => {
+    vi.mocked(lookupFrToZh).mockResolvedValue('巴黎');
+    mockSelection('Paris');
+    renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(screen.getByTestId('article-body'));
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Traduire la sélection' }),
+    );
+    expect(await screen.findByText('巴黎')).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Ajouter avec cette traduction' }),
+    );
+
+    expect(listVocabulary()[0]).toMatchObject({
+      term: 'Paris',
+      translation: '巴黎',
+      articleTitle: article.title,
+    });
+  });
+
   it('shows a calm error and removes loading text when translation fails', async () => {
     vi.mocked(lookupFrToZh).mockResolvedValue(null);
-
-    vi.stubGlobal(
-      'getSelection',
-      vi.fn().mockReturnValue({
-        toString: () => 'Paris',
-        rangeCount: 1,
-        getRangeAt: () => ({}),
-        removeAllRanges: () => {},
-      }),
-    );
+    mockSelection('Paris');
 
     renderRead();
 

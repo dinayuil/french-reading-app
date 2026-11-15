@@ -186,6 +186,28 @@ describe('useVisibleDuration', () => {
     expect(result.current.elapsedMs).toBeLessThanOrEqual(2100);
   });
 
+  it('includes restored elapsed time in the first and live values', () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    const { result } = renderHook(() =>
+      useVisibleDuration(true, 100, {
+        pauseWhenHidden: false,
+        initialElapsedMs: 5_000,
+      }),
+    );
+
+    expect(result.current.elapsedMs).toBe(5_000);
+
+    act(() => {
+      now += 1_000;
+      vi.advanceTimersByTime(1_000);
+    });
+
+    expect(result.current.elapsedMs).toBeGreaterThanOrEqual(5_900);
+    expect(result.current.getElapsedMs()).toBeGreaterThanOrEqual(5_900);
+    expect(result.current.getElapsedMs()).toBeLessThanOrEqual(6_100);
+  });
+
   it('re-renders at tickMs interval when provided', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
 

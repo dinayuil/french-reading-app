@@ -38,6 +38,9 @@ export default function Layout() {
                 <NavLink to="/data" className="top-bar__link">
                   {t('nav.data')}
                 </NavLink>
+                <NavLink to="/mots" className="top-bar__link">
+                  {t('nav.vocabulary')}
+                </NavLink>
                 <NavLink to="/aide" className="top-bar__link">
                   {t('nav.help')}
                 </NavLink>

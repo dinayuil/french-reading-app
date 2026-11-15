@@ -7,6 +7,7 @@ import { resolveArticleById } from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
 import { i18n } from '../i18n';
 import { readStudyData } from '../features/data/backup';
+import { listVocabulary } from '../features/vocabulary/vocabulary';
 import type { Article, ArticleImage } from '../types/content';
 
 vi.mock('../lib/content', () => ({
@@ -185,7 +186,10 @@ function mockSelection(
     get rangeCount() {
       return selectedText && getNode() ? 1 : 0;
     },
-    getRangeAt: () => ({}),
+    getRangeAt: () => ({
+      startContainer: getNode(),
+      endContainer: getNode(),
+    }),
     removeAllRanges: () => {
       selectedText = '';
     },
@@ -426,6 +430,157 @@ describe('PracticePage', () => {
     expect(
       screen.queryByText(article.questions[0].explanation!),
     ).not.toBeInTheDocument();
+  });
+
+  it('shows the final frozen time after submitting even when the realtime timer was hidden', async () => {
+    renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+    await act(async () => {});
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Masquer le chronomètre' }),
+    );
+    expect(screen.queryByTestId('practice-timer')).not.toBeInTheDocument();
+
+    advanceTime(2_000);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    expect(screen.getByTestId('practice-timer')).toHaveTextContent('2 s');
+    expect(screen.getByTestId('practice-timer')).toHaveAttribute(
+      'aria-label',
+      "Temps final de l'exercice",
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Afficher le chronomètre' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('starts a fresh attempt from the retry action', async () => {
+    renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(screen.getByRole('radio', { name: 'À Paris' }));
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+    expect(screen.getByText('Score : 1 / 2')).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole('button', { name: "Refaire l'exercice" }),
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Score : 1 / 2')).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'À Paris' })).not.toBeChecked();
+    expect(screen.getByTestId('practice-timer')).toHaveTextContent('0 s');
+    expect(readStoredSessions()).toHaveLength(1);
+  });
+
+  it('never adds a marked word automatically and adds it explicitly after submit', async () => {
+    mockSelection('flâner');
+    renderPractice();
+
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(screen.getByTestId('article-body'));
+
+    expect(screen.queryByRole('button', { name: 'Ajouter au carnet' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Traduire la sélection' }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(await screen.findByTestId('mark-word'));
+    expect(screen.getByText('flâner')).toBeInTheDocument();
+    expect(listVocabulary()).toHaveLength(0);
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: 'Ajouter au carnet : flâner',
+      }),
+    );
+
+    expect(listVocabulary()).toHaveLength(1);
+    expect(listVocabulary()[0]).toMatchObject({
+      term: 'flâner',
+      articleId: article.id,
+      articleTitle: article.title,
+    });
+  });
+
+  it('adds a marked word with the original source sentence after submit', async () => {
+    mockSelection('monument');
+    renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(screen.getByTestId('article-body'));
+    await userEvent.click(await screen.findByTestId('mark-word'));
+
+    expect(listVocabulary()).toHaveLength(0);
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Ajouter au carnet : monument' }),
+    );
+
+    expect(listVocabulary()[0]).toMatchObject({
+      term: 'monument',
+      context: 'La tour Eiffel est un grand monument situé à Paris.',
+      articleId: article.id,
+      articleTitle: article.title,
+    });
+  });
+
+  it('adds a post-submit glossary term with its original source sentence', async () => {
+    renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: /situé :/ }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Ajouter au carnet' }),
+    );
+
+    expect(listVocabulary()[0]).toMatchObject({
+      term: 'situé',
+      context: 'La tour Eiffel est un grand monument situé à Paris.',
+    });
+  });
+
+  it('adds a post-submit selection to the notebook with its source sentence', async () => {
+    renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    mockSelection('Paris', () =>
+      document.querySelector('.sentence-fr'),
+    );
+    await userEvent.click(screen.getByTestId('article-body'));
+    const add = await screen.findByRole('button', {
+      name: 'Ajouter au carnet',
+    });
+    await userEvent.click(add);
+
+    expect(listVocabulary()[0]).toMatchObject({
+      term: 'Paris',
+      context: 'La tour Eiffel est un grand monument situé à Paris.',
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Ajouté au carnet.');
   });
 
   it('shows the loading state while the article is fetched', () => {

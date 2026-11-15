@@ -1,6 +1,7 @@
 /* Practice page layout */
 .practice-page {
-  padding-bottom: var(--space-12);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: calc(var(--space-12) + env(safe-area-inset-bottom, 0px));
 }
 
 .practice-page__loading {
@@ -118,7 +119,7 @@
   padding: var(--space-4);
   margin-bottom: var(--space-6);
   background-color: var(--color-accent-light);
-  border: 1px solid rgba(43, 76, 140, 0.18);
+  border: 1px solid var(--color-accent-border);
   border-radius: var(--radius-md);
 }
 
@@ -172,11 +173,11 @@
 }
 
 .practice-question--correct {
-  border-color: rgba(43, 110, 79, 0.45);
+  border-color: var(--color-success-border);
 }
 
 .practice-question--incorrect {
-  border-color: rgba(180, 35, 24, 0.35);
+  border-color: var(--color-danger-border);
 }
 
 .practice-question__prompt {
@@ -237,12 +238,12 @@
 
 .practice-option--correct {
   border-color: var(--color-success);
-  background-color: #eef7f1;
+  background-color: var(--color-success-light);
 }
 
 .practice-option--correct:hover {
   border-color: var(--color-success);
-  background-color: #eef7f1;
+  background-color: var(--color-success-light);
 }
 
 .practice-option--incorrect {
@@ -339,7 +340,7 @@
 }
 
 .practice-submit__button:hover {
-  background-color: #1f3a70;
+  background-color: var(--color-accent-hover);
 }
 
 .practice-submit__hint {
@@ -410,4 +411,86 @@
   .practice-header__meta {
     gap: var(--space-3);
   }
+}
+/* Restored draft and frozen final time */
+.practice-resume {
+  max-width: var(--measure);
+  margin-bottom: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-accent-light);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.practice-timer--frozen {
+  background-color: var(--color-success-light);
+  color: var(--color-success-text);
+  box-shadow: inset 0 0 0 1px var(--color-success-border);
+}
+
+/* Marked words can be added to the notebook after submitting */
+.practice-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.practice-mark__add {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--color-accent-border);
+  border-radius: 50%;
+  background-color: var(--color-surface);
+  color: var(--color-accent);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.practice-mark__add:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-accent);
+}
+
+.practice-mark__add--done {
+  border-color: var(--color-success);
+  background-color: var(--color-success-light);
+  color: var(--color-success-text);
+  cursor: default;
+}
+
+.practice-marks__status {
+  flex-basis: 100%;
+  color: var(--color-success-text);
+  font-size: 0.8125rem;
+}
+
+.practice-marks__link {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.practice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.practice-actions__retry {
+  appearance: none;
+  cursor: pointer;
+  color: var(--color-accent);
+}
+
+.practice-actions__retry:hover {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-light);
 }

@@ -6,7 +6,47 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
+    <meta name="theme-color" content="#fbf9f4" />
     <title>Lecture en français</title>
+    <style>
+      /* Paint the resolved background before any script or stylesheet loads. */
+      html {
+        background-color: #fbf9f4;
+      }
+      html[data-theme='dark'] {
+        background-color: #121518;
+      }
+    </style>
+    <script>
+      (function () {
+        var dark = false;
+        try {
+          var raw = localStorage.getItem('frp:settings');
+          var settings = raw ? JSON.parse(raw) : null;
+          var preference =
+            settings && typeof settings.theme === 'string'
+              ? settings.theme
+              : 'system';
+          dark =
+            preference === 'dark' ||
+            (preference !== 'light' &&
+              typeof window.matchMedia === 'function' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+        } catch (error) {
+          dark =
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
+        }
+        var theme = dark ? 'dark' : 'light';
+        var background = dark ? '#121518' : '#fbf9f4';
+        var root = document.documentElement;
+        root.setAttribute('data-theme', theme);
+        root.style.colorScheme = theme;
+        root.style.backgroundColor = background;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', background);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

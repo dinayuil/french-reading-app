@@ -3,8 +3,15 @@ import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { resolveArticleById } from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
+import { findArticleSentenceContext } from '../lib/articleContext';
 import { formatDuration, useVisibleDuration } from '../lib/time';
 import { loadSettings, saveSettings } from '../lib/settings';
+import { notifyStudyDataChanged } from '../lib/studyDataEvents';
+import {
+  addVocabulary,
+  updateVocabulary,
+} from '../features/vocabulary/vocabulary';
+import { useArticleSelection } from '../features/reading/useArticleSelection';
 import ErrorState from '../components/ErrorState';
 import GlossaryText from '../components/GlossaryText';
 import LevelBadge from '../components/LevelBadge';
@@ -23,7 +30,7 @@ type LoadState =
 
 type PanelState =
   | { kind: 'glossary'; term: string; explanation: string }
-  | { kind: 'translation'; text: string }
+  | { kind: 'translation'; text: string; context?: string }
   | null;
 
 type TranslationStatus =
@@ -32,10 +39,15 @@ type TranslationStatus =
   | { kind: 'error' }
   | { kind: 'success'; result: string };
 
+type PanelNotice =
+  | { tone: 'success' | 'error'; text: string }
+  | null;
+
 export default function PracticePage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const [attempt, setAttempt] = useState(0);
 
   const load = useCallback(async () => {
     if (!id) {
@@ -79,10 +91,26 @@ export default function PracticePage() {
     );
   }
 
-  return <PracticeRunner key={state.article.id} article={state.article} />;
+  return (
+    <PracticeRunner
+      key={`${state.article.id}-${attempt}`}
+      article={state.article}
+      onRetry={() => {
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+        setAttempt((value) => value + 1);
+      }}
+    />
+  );
 }
 
-function PracticeRunner({ article }: { article: Article }) {
+function PracticeRunner({
+  article,
+  onRetry,
+}: {
+  article: Article;
+  onRetry: () => void;
+}) {
   const { t } = useTranslation();
   const translation = article.translations.zh;
   const {
@@ -93,90 +121,82 @@ function PracticeRunner({ article }: { article: Article }) {
     total,
     results,
     frozenMs,
+    questionOrder,
+    optionOrders,
+    initialElapsedMs,
     answerQuestion,
     markWord,
+    checkpointElapsed,
     submit,
   } = usePracticeSession(article);
   const { elapsedMs, getElapsedMs } = useVisibleDuration(!submitted, 1_000, {
     pauseWhenHidden: false,
+    initialElapsedMs,
   });
 
   const [timerVisible, setTimerVisible] = useState(
     () => loadSettings().practiceTimerVisible,
   );
   const [showZh, setShowZh] = useState(false);
-  const [selection, setSelection] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState(false);
   const [markError, setMarkError] = useState(false);
+  const [answerError, setAnswerError] = useState(false);
   const [panel, setPanel] = useState<PanelState>(null);
   const [translationStatus, setTranslationStatus] = useState<TranslationStatus>({
     kind: 'idle',
   });
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [addedTerm, setAddedTerm] = useState<string | null>(null);
+  const [addedMarkedWord, setAddedMarkedWord] = useState<string | null>(null);
+  const [addError, setAddError] = useState(false);
+  const [panelNotice, setPanelNotice] = useState<PanelNotice>(null);
   const articleBodyRef = useRef<HTMLDivElement>(null);
-  const selectionTimerRef = useRef<number | null>(null);
+  const { selection, clearSelection } = useArticleSelection(articleBodyRef);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const lastTermButtonRef = useRef<HTMLButtonElement | null>(null);
   const translationRequestRef = useRef(0);
 
-  const readSelection = useCallback(() => {
-    const currentSelection = window.getSelection();
-    const text = currentSelection?.toString().trim() ?? '';
-    const container = articleBodyRef.current;
+  useEffect(() => {
+    const flush = () => checkpointElapsed(getElapsedMs());
+    if (submitted) return;
 
-    if (!text || !currentSelection || !container) {
-      setSelection(null);
-      return;
-    }
+    const intervalId = window.setInterval(flush, 5_000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+    const handlePageHide = () => flush();
 
-    const insideArticle = (node: Node | null) =>
-      node !== null && container.contains(node);
-
-    if (
-      insideArticle(currentSelection.anchorNode) &&
-      insideArticle(currentSelection.focusNode)
-    ) {
-      setSelection(text);
-    } else {
-      setSelection(null);
-    }
-  }, []);
-
-  const cancelPendingSelectionRead = useCallback(() => {
-    if (selectionTimerRef.current !== null) {
-      window.clearTimeout(selectionTimerRef.current);
-      selectionTimerRef.current = null;
-    }
-  }, []);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', handlePageHide);
+      flush();
+    };
+  }, [submitted, checkpointElapsed, getElapsedMs]);
 
   useEffect(() => {
-    const scheduleSelectionRead = () => {
-      if (selectionTimerRef.current !== null) {
-        window.clearTimeout(selectionTimerRef.current);
-      }
-      selectionTimerRef.current = window.setTimeout(() => {
-        selectionTimerRef.current = null;
-        readSelection();
-      }, 150);
-    };
+    setAddedTerm(null);
+    setAddError(false);
+  }, [selection?.text]);
 
-    document.addEventListener('mouseup', readSelection);
-    document.addEventListener('touchend', readSelection);
-    document.addEventListener('selectionchange', scheduleSelectionRead);
-    return () => {
-      document.removeEventListener('mouseup', readSelection);
-      document.removeEventListener('touchend', readSelection);
-      document.removeEventListener('selectionchange', scheduleSelectionRead);
-      if (selectionTimerRef.current !== null) {
-        window.clearTimeout(selectionTimerRef.current);
-        selectionTimerRef.current = null;
-      }
-    };
-  }, [readSelection]);
+  useEffect(() => {
+    if (panel) {
+      closeButtonRef.current?.focus({ preventScroll: true });
+      return;
+    }
+    if (lastTermButtonRef.current) {
+      lastTermButtonRef.current.focus({ preventScroll: true });
+      lastTermButtonRef.current = null;
+    }
+  }, [panel]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && panel) {
         translationRequestRef.current += 1;
         setPanel(null);
+        setPanelNotice(null);
         setTranslationStatus({ kind: 'idle' });
       }
     };
@@ -191,35 +211,33 @@ function PracticeRunner({ article }: { article: Article }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (panel) {
-      closeButtonRef.current?.focus();
-    }
-  }, [panel]);
-
   const toggleTimer = () => {
     const next = !timerVisible;
     setTimerVisible(next);
     saveSettings({ practiceTimerVisible: next });
   };
 
-  const handleMark = () => {
-    if (!selection) return;
-
+  const markSelection = (word: string): boolean => {
     setMarkError(false);
     try {
-      markWord(selection);
+      markWord(word);
     } catch {
       setMarkError(true);
-      return;
+      return false;
     }
+    return true;
+  };
 
-    window.getSelection()?.removeAllRanges();
-    setSelection(null);
+  const handleMark = () => {
+    if (!selection) return;
+    if (!markSelection(selection.text)) return;
+
+    clearArticleSelection();
   };
 
   const handleSubmit = () => {
     setSubmitError(false);
+    setAnswerError(false);
     try {
       submit(getElapsedMs());
     } catch {
@@ -227,17 +245,28 @@ function PracticeRunner({ article }: { article: Article }) {
       return;
     }
 
+    notifyStudyDataChanged();
     translationRequestRef.current += 1;
-    cancelPendingSelectionRead();
     window.getSelection()?.removeAllRanges();
+    clearSelection();
     setMarkError(false);
-    setSelection(null);
+    setPanel(null);
+    setPanelNotice(null);
+    setTranslationStatus({ kind: 'idle' });
   };
 
   const handleLookup = (term: string, explanation: string) => {
     if (!submitted) return;
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLButtonElement &&
+      active.classList.contains('gloss-term')
+    ) {
+      lastTermButtonRef.current = active;
+    }
     translationRequestRef.current += 1;
     setPanel({ kind: 'glossary', term, explanation });
+    setPanelNotice(null);
     setTranslationStatus({ kind: 'idle' });
   };
 
@@ -253,15 +282,120 @@ function PracticeRunner({ article }: { article: Article }) {
 
   const handleTranslateSelection = async () => {
     if (!submitted || !selection) return;
-    setPanel({ kind: 'translation', text: selection });
-    await runTranslation(selection);
+    setPanel({
+      kind: 'translation',
+      text: selection.text,
+      context: selection.context,
+    });
+    setPanelNotice(null);
+    await runTranslation(selection.text);
+  };
+
+  const storeWord = (
+    term: string,
+    context: string | undefined,
+    translationText: string | undefined,
+  ): boolean => {
+    try {
+      const entry = addVocabulary({
+        term,
+        translation: translationText,
+        context,
+        articleId: article.id,
+        articleTitle: article.title,
+      });
+      if (translationText && entry.translation !== translationText) {
+        updateVocabulary(entry.id, { translation: translationText });
+      }
+    } catch {
+      return false;
+    }
+    notifyStudyDataChanged();
+    return true;
+  };
+
+  const handleAddSelection = () => {
+    if (!submitted || !selection) return;
+    setAddError(false);
+    if (
+      !storeWord(
+        selection.text,
+        selection.context ??
+          findArticleSentenceContext(article, selection.text),
+        undefined,
+      )
+    ) {
+      setAddError(true);
+      return;
+    }
+    setAddedTerm(selection.text);
+  };
+
+  const handleAddMarked = (word: string) => {
+    setAddError(false);
+    if (
+      !storeWord(
+        word,
+        findArticleSentenceContext(article, word),
+        undefined,
+      )
+    ) {
+      setAddError(true);
+      return;
+    }
+    setAddedMarkedWord(word);
+  };
+
+  const handleAddFromPanel = () => {
+    if (!submitted || !panel) return;
+    const term = panel.kind === 'glossary' ? panel.term : panel.text;
+    const context =
+      panel.kind === 'translation'
+        ? panel.context ?? findArticleSentenceContext(article, panel.text)
+        : findArticleSentenceContext(article, panel.term);
+    const translated =
+      panel.kind === 'glossary'
+        ? panel.explanation
+        : translationStatus.kind === 'success'
+          ? translationStatus.result
+          : undefined;
+
+    setPanelNotice(null);
+    if (!storeWord(term, context, translated)) {
+      setPanelNotice({ tone: 'error', text: t('practice.addVocabularyError') });
+      return;
+    }
+    setPanelNotice({ tone: 'success', text: t('practice.addedToVocabulary') });
   };
 
   const closePanel = () => {
     translationRequestRef.current += 1;
     setPanel(null);
+    setPanelNotice(null);
     setTranslationStatus({ kind: 'idle' });
   };
+
+  const clearArticleSelection = () => {
+    window.getSelection()?.removeAllRanges();
+    clearSelection();
+  };
+
+  const orderedQuestions = questionOrder.length
+    ? questionOrder.flatMap((questionId) => {
+        const question = article.questions.find(
+          (candidate) => candidate.id === questionId,
+        );
+        return question ? [question] : [];
+      })
+    : article.questions;
+
+  const panelTerm = panel?.kind === 'glossary' ? panel.term : panel?.text;
+  const panelAddLabel =
+    panel?.kind === 'glossary'
+      ? t('practice.addToVocabulary')
+      : translationStatus.kind === 'success'
+        ? t('practice.addWithTranslation')
+        : t('practice.addToVocabulary');
 
   return (
     <div className="practice-page">
@@ -296,27 +430,36 @@ function PracticeRunner({ article }: { article: Article }) {
           )}
 
           <div className="practice-header__controls">
-            {timerVisible && (
-              <output
-                className="practice-timer"
+            {(timerVisible || submitted) && (
+              <span
+                className={`practice-timer${
+                  submitted ? ' practice-timer--frozen' : ''
+                }`}
                 data-testid="practice-timer"
-                aria-label={t('practice.timerAria')}
+                role="timer"
+                aria-label={
+                  submitted
+                    ? t('practice.finalTimerAria')
+                    : t('practice.timerAria')
+                }
               >
                 {formatDuration(
                   submitted && frozenMs !== null ? frozenMs : elapsedMs,
                 )}
-              </output>
+              </span>
             )}
-            <button
-              type="button"
-              className="read-toolbar__toggle"
-              aria-pressed={!timerVisible}
-              onClick={toggleTimer}
-            >
-              {timerVisible
-                ? t('practice.hideTimer')
-                : t('practice.showTimer')}
-            </button>
+            {!submitted && (
+              <button
+                type="button"
+                className="read-toolbar__toggle"
+                aria-pressed={!timerVisible}
+                onClick={toggleTimer}
+              >
+                {timerVisible
+                  ? t('practice.hideTimer')
+                  : t('practice.showTimer')}
+              </button>
+            )}
             <Link
               to={`/read/${article.id}`}
               className="practice-header__back"
@@ -339,6 +482,12 @@ function PracticeRunner({ article }: { article: Article }) {
             {t('practice.rulesLink')}
           </Link>
         </p>
+
+        {!submitted && initialElapsedMs > 0 && (
+          <p className="practice-resume" role="status">
+            {t('practice.resumed')}
+          </p>
+        )}
 
         {submitted && (
           <section className="practice-result" aria-live="polite">
@@ -429,37 +578,84 @@ function PracticeRunner({ article }: { article: Article }) {
             </h2>
             <ul className="practice-marks__list">
               {markedWords.map((word) => (
-                <li key={word} className="practice-mark" lang="fr">
-                  {word}
+                <li key={word} className="practice-mark">
+                  <span lang="fr">{word}</span>
+                  {submitted && (
+                    <button
+                      type="button"
+                      className={`practice-mark__add${
+                        addedMarkedWord === word
+                          ? ' practice-mark__add--done'
+                          : ''
+                      }`}
+                      onClick={() => handleAddMarked(word)}
+                      aria-label={
+                        addedMarkedWord === word
+                          ? t('practice.addedToVocabulary')
+                          : `${t('practice.addToVocabulary')} : ${word}`
+                      }
+                    >
+                      {addedMarkedWord === word ? '✓' : '+'}
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
+            {addedMarkedWord && (
+              <p className="practice-marks__status" role="status">
+                {t('practice.addedToVocabulary')}{' '}
+                <Link to="/mots" className="practice-marks__link">
+                  {t('practice.viewVocabulary')}
+                </Link>
+              </p>
+            )}
+            {addError && (
+              <p className="practice-save-error practice-save-error--toolbar" role="alert">
+                {t('practice.addVocabularyError')}
+              </p>
+            )}
           </section>
         )}
 
-        {selection && (
+        {selection && !panel && !submitted && (
           <div
             className="selection-toolbar"
             role="toolbar"
             aria-label={t('practice.markAria')}
           >
-            {markError && (
-              <p
-                className="practice-save-error practice-save-error--toolbar"
-                role="alert"
+            <div className="selection-toolbar__actions">
+              <button
+                type="button"
+                className="selection-toolbar__button"
+                data-testid="mark-word"
+                onClick={handleMark}
               >
+                {t('practice.mark')}
+              </button>
+            </div>
+            {markError && (
+              <p className="selection-toolbar__error" role="alert">
                 {t('practice.saveErrorMark')}
               </p>
             )}
-            <button
-              type="button"
-              className="selection-toolbar__button"
-              data-testid="mark-word"
-              onClick={handleMark}
-            >
-              {t('practice.mark')}
-            </button>
-            {submitted && (
+          </div>
+        )}
+
+        {selection && !panel && submitted && (
+          <div
+            className="selection-toolbar"
+            role="toolbar"
+            aria-label={t('practice.markAria')}
+          >
+            <div className="selection-toolbar__actions">
+              <button
+                type="button"
+                className="selection-toolbar__button"
+                data-testid="mark-word"
+                onClick={handleMark}
+              >
+                {t('practice.mark')}
+              </button>
               <button
                 type="button"
                 className="selection-toolbar__button selection-toolbar__button--secondary"
@@ -467,11 +663,43 @@ function PracticeRunner({ article }: { article: Article }) {
               >
                 {t('practice.translateSelection')}
               </button>
+              <button
+                type="button"
+                className="selection-toolbar__button selection-toolbar__button--secondary"
+                onClick={handleAddSelection}
+                disabled={addedTerm === selection.text}
+              >
+                {addedTerm === selection.text
+                  ? t('practice.added')
+                  : t('practice.addToVocabulary')}
+              </button>
+            </div>
+            {markError && (
+              <p className="selection-toolbar__error" role="alert">
+                {t('practice.saveErrorMark')}
+              </p>
+            )}
+            {addError && (
+              <p className="selection-toolbar__error" role="alert">
+                {t('practice.addVocabularyError')}
+              </p>
+            )}
+            {addedTerm === selection.text && (
+              <p className="selection-toolbar__status" role="status">
+                {t('practice.addedToVocabulary')}{' '}
+                <Link
+                  to="/mots"
+                  onClick={clearArticleSelection}
+                  className="selection-toolbar__link"
+                >
+                  {t('practice.viewVocabulary')}
+                </Link>
+              </p>
             )}
           </div>
         )}
 
-        {submitted && panel && (
+        {submitted && panel && panelTerm && (
           <aside
             className="explanation-panel"
             role="dialog"
@@ -489,10 +717,25 @@ function PracticeRunner({ article }: { article: Article }) {
             </button>
             {panel.kind === 'glossary' ? (
               <>
-                <h2 className="explanation-panel__term">{panel.term}</h2>
-                <p className="explanation-panel__explanation">
+                <h2 className="explanation-panel__term" lang="fr">
+                  {panel.term}
+                </h2>
+                <p className="explanation-panel__explanation" lang="zh-CN">
                   {panel.explanation}
                 </p>
+              </>
+            ) : (
+              <>
+                <p className="explanation-panel__label">
+                  {t('read.selectedText')}
+                </p>
+                <h2 className="explanation-panel__term" lang="fr">
+                  {panel.text}
+                </h2>
+              </>
+            )}
+            <div className="explanation-panel__actions">
+              {panel.kind === 'glossary' && (
                 <button
                   type="button"
                   className="explanation-panel__action"
@@ -500,9 +743,30 @@ function PracticeRunner({ article }: { article: Article }) {
                 >
                   {t('practice.translate')}
                 </button>
-              </>
-            ) : (
-              <h2 className="explanation-panel__term">{panel.text}</h2>
+              )}
+              <button
+                type="button"
+                className="explanation-panel__action explanation-panel__action--primary"
+                onClick={handleAddFromPanel}
+              >
+                {panelAddLabel}
+              </button>
+            </div>
+            {panelNotice && (
+              <p
+                className={`explanation-panel__notice explanation-panel__notice--${panelNotice.tone}`}
+                role={panelNotice.tone === 'error' ? 'alert' : 'status'}
+              >
+                {panelNotice.text}
+                {panelNotice.tone === 'success' && (
+                  <>
+                    {' '}
+                    <Link to="/mots" className="explanation-panel__link">
+                      {t('practice.viewVocabulary')}
+                    </Link>
+                  </>
+                )}
+              </p>
             )}
             <div className="explanation-panel__translation">
               {translationStatus.kind === 'loading' && (
@@ -516,7 +780,7 @@ function PracticeRunner({ article }: { article: Article }) {
                 </p>
               )}
               {translationStatus.kind === 'success' && (
-                <p className="explanation-panel__result">
+                <p className="explanation-panel__result" lang="zh-CN">
                   {translationStatus.result}
                 </p>
               )}
@@ -534,8 +798,13 @@ function PracticeRunner({ article }: { article: Article }) {
           >
             {t('practice.questions')}
           </h2>
+          {answerError && (
+            <p className="practice-save-error" role="alert">
+              {t('practice.saveErrorAnswer')}
+            </p>
+          )}
           <ol className="practice-questions__list">
-            {article.questions.map((question, questionIndex) => {
+            {orderedQuestions.map((question, questionIndex) => {
               const result = results.find(
                 (item) => item.questionId === question.id,
               );
@@ -550,6 +819,9 @@ function PracticeRunner({ article }: { article: Article }) {
               const displayedExplanation = showZh
                 ? translation.questions[question.id]
                 : question.explanation;
+              const optionOrder =
+                optionOrders[question.id] ??
+                question.options.map((_, index) => index);
 
               return (
                 <li key={question.id} className="practice-questions__item">
@@ -578,7 +850,8 @@ function PracticeRunner({ article }: { article: Article }) {
                       )}
                     </legend>
                     <div className="practice-question__options">
-                      {question.options.map((option, optionIndex) => {
+                      {optionOrder.map((optionIndex) => {
+                        const option = question.options[optionIndex];
                         const selected =
                           answers[question.id] === optionIndex;
                         const isCorrectOption =
@@ -613,9 +886,14 @@ function PracticeRunner({ article }: { article: Article }) {
                               value={optionIndex}
                               checked={selected}
                               disabled={submitted}
-                              onChange={() =>
-                                answerQuestion(question.id, optionIndex)
-                              }
+                              onChange={() => {
+                                setAnswerError(false);
+                                try {
+                                  answerQuestion(question.id, optionIndex);
+                                } catch {
+                                  setAnswerError(true);
+                                }
+                              }}
                             />
                             <span className="practice-option__text">
                               <span
@@ -723,6 +1001,13 @@ function PracticeRunner({ article }: { article: Article }) {
             <Link to={`/read/${article.id}`} className="practice-actions__link">
               {t('practice.reread')}
             </Link>
+            <button
+              type="button"
+              className="practice-actions__link practice-actions__retry"
+              onClick={onRetry}
+            >
+              {t('practice.retry')}
+            </button>
           </div>
         )}
 

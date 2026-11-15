@@ -20,6 +20,8 @@ export default function HelpPage() {
               <>
                 {' '}
                 <Link to="/data">{t('help.data.manageLink')}</Link>
+                {' · '}
+                <Link to="/mots">{t('help.data.vocabularyLink')}</Link>
               </>
             )}
             {section === 'license' && (

@@ -20,7 +20,7 @@ vi.mock('@capacitor/share', () => ({
   Share: { share: mocks.share },
 }));
 
-import { exportDataFile } from './files';
+import { exportDataFile, exportPngFile } from './files';
 
 const originalCreateObjectURL = URL.createObjectURL;
 const originalRevokeObjectURL = URL.revokeObjectURL;
@@ -144,5 +144,42 @@ describe('exportDataFile', () => {
     );
 
     expect(mocks.share).not.toHaveBeenCalled();
+  });
+
+  it('downloads a generated PNG in the browser', async () => {
+    mocks.isNativeApp.mockReturnValue(false);
+    let clickedAnchor: HTMLAnchorElement | undefined;
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        clickedAnchor = this;
+      });
+    const blob = new Blob(['png-bytes'], { type: 'image/png' });
+
+    await exportPngFile('progres.png', blob);
+
+    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(clickedAnchor?.download).toBe('progres.png');
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(mocks.writeFile).not.toHaveBeenCalled();
+  });
+
+  it('writes the PNG as base64 and opens the native share sheet', async () => {
+    mocks.isNativeApp.mockReturnValue(true);
+    mocks.writeFile.mockResolvedValue({ uri: 'file:///cache/progres.png' });
+    mocks.share.mockResolvedValue({ activityType: 'send' });
+
+    await exportPngFile('progres.png', new Blob(['png'], { type: 'image/png' }));
+
+    expect(mocks.writeFile).toHaveBeenCalledWith({
+      path: 'progres.png',
+      data: 'cG5n',
+      directory: 'CACHE',
+    });
+    expect(mocks.share).toHaveBeenCalledWith({
+      title: 'progres.png',
+      url: 'file:///cache/progres.png',
+    });
+    expect(createObjectURL).not.toHaveBeenCalled();
   });
 });
