@@ -218,6 +218,12 @@
   box-decoration-break: clone;
 }
 
+/* A highlighted word is also a direct way back to its selection actions.
+   Only the cursor changes, so the mark colour and text layout stay intact. */
+.mark-highlight--interactive {
+  cursor: pointer;
+}
+
 .marked-terms {
   max-width: var(--measure);
   display: flex;

@@ -121,7 +121,8 @@ function ArticleReader({ article }: { article: Article }) {
     }
   });
   const articleBodyRef = useRef<HTMLDivElement>(null);
-  const { selection, clearSelection } = useArticleSelection(articleBodyRef);
+  const { selection, clearSelection, selectRange } =
+    useArticleSelection(articleBodyRef);
   const {
     terms: markedTerms,
     isMarked,
@@ -282,6 +283,11 @@ function ArticleReader({ article }: { article: Article }) {
     clearSelection();
   };
 
+  const handleSelectMarked = (term: string, range: Range) => {
+    closePanel();
+    selectRange(range, term);
+  };
+
   const selectionIsMarked = selection ? isMarked(selection.text) : false;
 
   const handleToggleMark = () => {
@@ -396,6 +402,7 @@ function ArticleReader({ article }: { article: Article }) {
                         })
                       }
                       markedTerms={markedTerms}
+                      onSelectMarked={handleSelectMarked}
                     />
                   </span>
                   {showZh && (

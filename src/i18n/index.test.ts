@@ -33,6 +33,25 @@ describe('i18n', () => {
     expect(fallbacks).toContain('fr');
   });
 
+  it('names the notebook destination in the add and added labels', () => {
+    for (const language of ['fr', 'zh']) {
+      const expected =
+        language === 'zh'
+          ? '连同译文加入单词本'
+          : 'Ajouter au carnet avec cette traduction';
+      const addedExpected =
+        language === 'zh' ? '已加入单词本' : 'Ajouté au carnet';
+      expect(i18n.t('read.addWithTranslation', { lng: language })).toBe(
+        expected,
+      );
+      expect(i18n.t('practice.addWithTranslation', { lng: language })).toBe(
+        expected,
+      );
+      expect(i18n.t('read.added', { lng: language })).toBe(addedExpected);
+      expect(i18n.t('practice.added', { lng: language })).toBe(addedExpected);
+    }
+  });
+
   it('labels every content theme in both UI languages', () => {
     const themes = [
       'culture',

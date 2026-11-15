@@ -5,7 +5,17 @@ import { useArticleSelection } from './useArticleSelection';
 
 function Harness() {
   const ref = useRef<HTMLDivElement>(null);
-  const { selection, clearSelection } = useArticleSelection(ref);
+  const { selection, clearSelection, selectRange } = useArticleSelection(ref);
+
+  const selectParis = () => {
+    const node = document.querySelector('.sentence-fr')?.firstChild;
+    if (!(node instanceof Text)) return;
+    const start = node.data.indexOf('Paris');
+    const range = document.createRange();
+    range.setStart(node, start);
+    range.setEnd(node, start + 'Paris'.length);
+    selectRange(range, 'Paris');
+  };
 
   return (
     <div>
@@ -16,6 +26,9 @@ function Harness() {
       <p data-testid="outside">Texte hors article</p>
       <p data-testid="selected">{selection?.text ?? ''}</p>
       <p data-testid="context">{selection?.context ?? ''}</p>
+      <button type="button" onClick={selectParis}>
+        select range
+      </button>
       <button type="button" onClick={clearSelection}>
         clear
       </button>
@@ -46,6 +59,9 @@ function stubSelection(text: string, selector: string) {
     }),
     removeAllRanges: () => {
       selectedText = '';
+    },
+    addRange: (range: Range) => {
+      selectedText = range.toString();
     },
   };
   vi.stubGlobal('getSelection', vi.fn(() => selection));
@@ -111,5 +127,32 @@ describe('useArticleSelection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'clear' }));
 
     expect(screen.getByTestId('selected')).toBeEmptyDOMElement();
+  });
+
+  it('applies a programmatic range immediately and moves the browser selection', () => {
+    render(<Harness />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'select range' }));
+
+    expect(screen.getByTestId('selected')).toHaveTextContent('Paris');
+    expect(screen.getByTestId('context')).toHaveTextContent(
+      'La tour Eiffel est à Paris.',
+    );
+    expect(window.getSelection()?.toString()).toBe('Paris');
+  });
+
+  it('keeps a programmatic selection after a pending touch timer settles', () => {
+    vi.useFakeTimers();
+    render(<Harness />);
+    stubSelection('Paris', '.sentence-fr');
+
+    fireEvent.touchEnd(screen.getByTestId('article'));
+    fireEvent.click(screen.getByRole('button', { name: 'select range' }));
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(screen.getByTestId('selected')).toHaveTextContent('Paris');
   });
 });

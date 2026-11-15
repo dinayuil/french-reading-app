@@ -10,6 +10,11 @@ export interface MarkedRange {
   end: number;
 }
 
+export interface FindMarkedRangesOptions {
+  /** Merge overlapping occurrences into their union (the default). */
+  merge?: boolean;
+}
+
 function canonicalApostrophes(value: string): string {
   return value.replace(APOSTROPHES, "'");
 }
@@ -132,11 +137,16 @@ function isMatchBoundary(text: string, start: number, end: number): boolean {
   return true;
 }
 
-/** Sorted, non-overlapping union of every selected term range. */
-function mergeRanges(ranges: MarkedRange[]): MarkedRange[] {
-  const sorted = ranges
+/** Sorted copy of the ranges, keeping partially overlapping occurrences. */
+function sortRanges(ranges: MarkedRange[]): MarkedRange[] {
+  return ranges
     .slice()
     .sort((left, right) => left.start - right.start || left.end - right.end);
+}
+
+/** Sorted, non-overlapping union of every selected term range. */
+function mergeRanges(ranges: MarkedRange[]): MarkedRange[] {
+  const sorted = sortRanges(ranges);
   const merged: MarkedRange[] = [];
 
   for (const range of sorted) {
@@ -155,11 +165,14 @@ function mergeRanges(ranges: MarkedRange[]): MarkedRange[] {
  * Finds every whole-word occurrence of the given terms in raw text. Matching is
  * case-insensitive and canonically equivalent (NFC/NFD), canonicalizes French
  * apostrophes, tolerates whitespace inside phrases, and never folds accents.
- * Returned ranges refer to the untouched original string.
+ * Returned ranges refer to the untouched original string. Overlapping matches
+ * are merged into their union by default, or kept separate with
+ * `{ merge: false }`.
  */
 export function findMarkedRanges(
   text: string,
   terms: string[],
+  options: FindMarkedRangesOptions = {},
 ): MarkedRange[] {
   if (typeof text !== 'string' || !Array.isArray(terms)) return [];
 
@@ -189,5 +202,5 @@ export function findMarkedRanges(
     }
   }
 
-  return mergeRanges(ranges);
+  return options.merge === false ? sortRanges(ranges) : mergeRanges(ranges);
 }

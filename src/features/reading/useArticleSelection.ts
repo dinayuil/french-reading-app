@@ -52,6 +52,8 @@ export function useArticleSelection(
 ): {
   selection: ArticleSelection | null;
   clearSelection: () => void;
+  /** Applies a DOM range from the article and shows it as the selection. */
+  selectRange: (range: Range, text: string) => void;
 } {
   const [selection, setSelection] = useState<ArticleSelection | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -166,5 +168,35 @@ export function useArticleSelection(
     setSelection(null);
   }, [cancelTimer]);
 
-  return { selection, clearSelection };
+  const selectRange = useCallback(
+    (range: Range, text: string) => {
+      const container = containerRef.current;
+      const nextText = normalizedText(text);
+      if (
+        !container ||
+        !nextText ||
+        !container.contains(range.startContainer) ||
+        !container.contains(range.endContainer)
+      ) {
+        return;
+      }
+
+      cancelTimer();
+      const browserSelection = window.getSelection();
+      browserSelection?.removeAllRanges();
+      browserSelection?.addRange(range);
+
+      let context: string | undefined;
+      try {
+        context = contextFor(range, container);
+      } catch {
+        context = undefined;
+      }
+
+      setSelection({ text: nextText, context });
+    },
+    [containerRef, cancelTimer],
+  );
+
+  return { selection, clearSelection, selectRange };
 }

@@ -157,7 +157,8 @@ function PracticeRunner({
   const [addError, setAddError] = useState(false);
   const [panelNotice, setPanelNotice] = useState<PanelNotice>(null);
   const articleBodyRef = useRef<HTMLDivElement>(null);
-  const { selection, clearSelection } = useArticleSelection(articleBodyRef);
+  const { selection, clearSelection, selectRange } =
+    useArticleSelection(articleBodyRef);
   const {
     terms: markedTerms,
     isMarked,
@@ -403,6 +404,11 @@ function PracticeRunner({
     clearSelection();
   };
 
+  const handleSelectMarked = (term: string, range: Range) => {
+    closePanel();
+    selectRange(range, term);
+  };
+
   const orderedQuestions = questionOrder.length
     ? questionOrder.flatMap((questionId) => {
         const question = article.questions.find(
@@ -566,6 +572,7 @@ function PracticeRunner({
                             })
                           }
                           markedTerms={markedTerms}
+                          onSelectMarked={handleSelectMarked}
                         />
                       </span>
                       {showZh && (
@@ -598,6 +605,7 @@ function PracticeRunner({
                         }
                         enabled={false}
                         markedTerms={markedTerms}
+                        onSelectMarked={handleSelectMarked}
                       />
                     </Fragment>
                   ))}

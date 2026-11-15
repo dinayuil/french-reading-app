@@ -88,6 +88,19 @@ describe('findMarkedRanges', () => {
     expect(text.slice(0, 14)).toBe('Très très très');
   });
 
+  it('can keep same-phrase overlapping occurrences separate on request', () => {
+    const text = 'Très très très bien.';
+    expect(
+      findMarkedRanges(text, ['très très'], { merge: false }),
+    ).toEqual([
+      { start: 0, end: 9 },
+      { start: 5, end: 14 },
+    ]);
+    expect(findMarkedRanges(text, ['très très'])).toEqual([
+      { start: 0, end: 14 },
+    ]);
+  });
+
   it('uses supplementary Unicode letters as boundaries and keeps UTF-16 offsets', () => {
     expect(findMarkedRanges('𐐀Paris', ['Paris'])).toEqual([]);
     expect(findMarkedRanges('Paris𐐀', ['Paris'])).toEqual([]);

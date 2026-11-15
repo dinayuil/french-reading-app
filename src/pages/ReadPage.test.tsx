@@ -123,6 +123,21 @@ const highlightArticle: Article = {
   },
 };
 
+const overlappingArticle: Article = {
+  ...article,
+  paragraphs: [
+    {
+      sentences: ['Très très très bien.'],
+    },
+  ],
+  translations: {
+    zh: {
+      ...article.translations.zh,
+      paragraphs: [{ sentences: ['非常好。'] }],
+    },
+  },
+};
+
 function renderRead(path = '/read/2026-11-09-tour-eiffel') {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -191,6 +206,7 @@ describe('ReadPage', () => {
     vi.mocked(resolveArticleById).mockReset();
     vi.mocked(resolveArticleById).mockResolvedValue(article);
     vi.mocked(lookupFrToZh).mockReset();
+    window.getSelection()?.removeAllRanges();
 
     vi.spyOn(performance, 'now').mockImplementation(() => now);
 
@@ -587,7 +603,9 @@ describe('ReadPage', () => {
     expect(await screen.findByText('巴黎')).toBeInTheDocument();
 
     await userEvent.click(
-      screen.getByRole('button', { name: 'Ajouter avec cette traduction' }),
+      screen.getByRole('button', {
+        name: 'Ajouter au carnet avec cette traduction',
+      }),
     );
 
     expect(listVocabulary()[0]).toMatchObject({
@@ -862,6 +880,97 @@ describe('ReadPage', () => {
     expect(listArticleMarks(article.id)).toEqual([]);
   });
 
+  it('selects a highlighted word by clicking it and offers to remove the mark', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue(highlightArticle);
+    Object.defineProperty(window, 'scrollY', {
+      value: 640,
+      writable: true,
+      configurable: true,
+    });
+    act(() => {
+      setArticleMark(article.id, 'Paris', true);
+    });
+
+    const { container } = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    const highlight = container.querySelector<HTMLElement>('.mark-highlight');
+    expect(highlight).not.toBeNull();
+    await userEvent.click(highlight!);
+
+    expect(await screen.findByTestId('unmark-word')).toHaveTextContent(
+      'Retirer la marque',
+    );
+    expect(window.getSelection()?.toString()).toBe('Paris');
+    expect(window.scrollY).toBe(640);
+  });
+
+  it('selects each real occurrence when the same marked phrase overlaps itself', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue(overlappingArticle);
+    act(() => {
+      setArticleMark(article.id, 'très très', true);
+    });
+
+    const { container } = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    const highlights = container.querySelectorAll<HTMLElement>(
+      '.mark-highlight',
+    );
+    expect(highlights).toHaveLength(3);
+
+    await userEvent.click(highlights[0]);
+    expect(window.getSelection()?.toString()).toBe('Très très');
+    expect(await screen.findByTestId('unmark-word')).toHaveTextContent(
+      'Retirer la marque',
+    );
+
+    await userEvent.click(highlights[2]);
+    expect(window.getSelection()?.toString()).toBe('très très');
+    expect(screen.getByTestId('unmark-word')).toHaveTextContent(
+      'Retirer la marque',
+    );
+  });
+
+  it('selects a whole marked phrase across glossary markup from its highlighted part', async () => {
+    act(() => {
+      setArticleMark(article.id, 'est situé à', true);
+    });
+
+    renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    const termButton = screen.getByRole('button', {
+      name: 'situé : 位于，坐落在',
+    });
+    const markedPart =
+      termButton.querySelector<HTMLElement>('.mark-highlight');
+    expect(markedPart).not.toBeNull();
+
+    await userEvent.click(markedPart!);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByTestId('unmark-word')).toBeInTheDocument();
+    expect(window.getSelection()?.toString()).toBe('est situé à');
+  });
+
+  it('selects a fully marked glossary word instead of opening its explanation', async () => {
+    act(() => {
+      setArticleMark(article.id, 'situé', true);
+    });
+
+    renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'situé : 位于，坐落在' }),
+    );
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByTestId('unmark-word')).toBeInTheDocument();
+    expect(window.getSelection()?.toString()).toBe('situé');
+  });
+
   it('keeps marks after reopening the article and removes them from the chip', async () => {
     vi.mocked(resolveArticleById).mockResolvedValue(highlightArticle);
     mockSelection('Paris');
@@ -988,6 +1097,9 @@ describe('ReadPage', () => {
     await screen.findByRole('heading', { name: article.title });
     act(() => {
       setArticleMark(article.id, 'Paris', true);
+    });
+    await waitFor(() => {
+      expect(container.querySelector('.mark-highlight')).not.toBeNull();
     });
 
     const sentence = container.querySelector('.sentence-fr');

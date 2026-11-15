@@ -14,7 +14,10 @@ import {
   savePracticeDraft,
 } from '../features/practice/practiceDraft';
 import { listVocabulary } from '../features/vocabulary/vocabulary';
-import { listArticleMarks } from '../features/marks/articleMarks';
+import {
+  listArticleMarks,
+  setArticleMark,
+} from '../features/marks/articleMarks';
 import type { Article, ArticleImage } from '../types/content';
 
 vi.mock('../lib/content', () => ({
@@ -227,6 +230,7 @@ describe('PracticePage', () => {
     vi.mocked(lookupFrToZh).mockReset();
     vi.spyOn(performance, 'now').mockImplementation(() => now);
     setVisibility('visible');
+    window.getSelection()?.removeAllRanges();
   });
 
   afterEach(() => {
@@ -799,6 +803,75 @@ describe('PracticePage', () => {
     expect(
       screen.queryByRole('region', { name: 'Mots marqués' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('selects a highlighted word by clicking it before submit without unlocking lookup actions', async () => {
+    act(() => {
+      setArticleMark(article.id, 'monument', true);
+    });
+
+    const { container } = renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(
+      container.querySelector<HTMLElement>('.mark-highlight')!,
+    );
+
+    expect(await screen.findByTestId('unmark-word')).toHaveTextContent(
+      'Retirer la marque',
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Traduire la sélection' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Ajouter au carnet' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(window.getSelection()?.toString()).toBe('monument');
+  });
+
+  it('selects a highlighted word by clicking it after submit and shows lookup actions', async () => {
+    act(() => {
+      setArticleMark(article.id, 'monument', true);
+    });
+
+    const { container } = renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    await userEvent.click(
+      container.querySelector<HTMLElement>('.mark-highlight')!,
+    );
+
+    expect(await screen.findByTestId('unmark-word')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Traduire la sélection' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Ajouter au carnet' }),
+    ).toBeInTheDocument();
+  });
+
+  it('selects a marked glossary word after submit instead of opening its explanation', async () => {
+    act(() => {
+      setArticleMark(article.id, 'situé', true);
+    });
+
+    renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Valider mes réponses' }),
+    );
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /situé :/ }),
+    );
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByTestId('unmark-word')).toBeInTheDocument();
+    expect(window.getSelection()?.toString()).toBe('situé');
   });
 
   it('seeds historical practice marks into the shared highlight before submitting', async () => {
