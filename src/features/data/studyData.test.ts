@@ -5,11 +5,13 @@ import {
   STUDY_DATA_KEY,
   createRecordId,
   getReadingProgress,
+  readStudyRecords,
   savePracticeSession,
   saveReadingProgress,
   saveReadingSession,
   writeStudyRecords,
 } from './studyData';
+import type { VocabularyEntry } from '../../types/progress';
 import { readStudyData } from './backup';
 import type { StudyData } from './backup';
 
@@ -217,5 +219,109 @@ describe('study data storage', () => {
 
   it('reads no progress for an article without a record', () => {
     expect(getReadingProgress('missing')).toBeNull();
+  });
+
+  it('keeps optional completion fields on practice records and never fabricates them', () => {
+    savePracticeSession({
+      id: 'practice-completed',
+      articleId: 'a',
+      startedAt: T1,
+      durationMs: 1_000,
+      completedAt: '2026-11-01T10:05:00.000Z',
+      completedDay: '2026-11-01',
+      score: 1,
+      total: 1,
+      answers: [{ questionId: 'q', selectedIndex: 0, correct: true }],
+      markedWords: [],
+    });
+    savePracticeSession({
+      id: 'practice-old',
+      articleId: 'b',
+      startedAt: T1,
+      durationMs: 1_000,
+      score: 0,
+      total: 1,
+      answers: [{ questionId: 'q', selectedIndex: null, correct: false }],
+      markedWords: [],
+    });
+
+    const data = readStudyData();
+    const completed = data.practiceSessions.find(
+      (item) => item.id === 'practice-completed',
+    );
+    const old = data.practiceSessions.find((item) => item.id === 'practice-old');
+
+    expect(completed).toMatchObject({
+      completedAt: '2026-11-01T10:05:00.000Z',
+      completedDay: '2026-11-01',
+    });
+    expect(old).not.toHaveProperty('completedAt');
+    expect(old).not.toHaveProperty('completedDay');
+  });
+
+  it('rejects practice records whose new completion fields are malformed', () => {
+    const base = {
+      id: 'practice-a',
+      articleId: 'a',
+      startedAt: T1,
+      durationMs: 1_000,
+      score: 0,
+      total: 0,
+      answers: [],
+      markedWords: [],
+    };
+
+    expect(() =>
+      savePracticeSession({ ...base, completedAt: 'not-a-date' }),
+    ).toThrow();
+    expect(() =>
+      savePracticeSession({ ...base, completedDay: '2026-02-31' }),
+    ).toThrow();
+    expect(() =>
+      savePracticeSession({ ...base, completedDay: '01/11/2026' }),
+    ).toThrow();
+    expect(readStudyData().practiceSessions).toHaveLength(0);
+  });
+
+  it('reads an empty vocabulary list from documents written before vocabulary existed', () => {
+    localStorage.setItem(
+      STUDY_KEY,
+      JSON.stringify({
+        readingSessions: [],
+        practiceSessions: [],
+        readingProgress: [],
+      }),
+    );
+
+    expect(readStudyData().vocabulary).toEqual([]);
+    expect(readStudyRecords().vocabulary).toEqual([]);
+  });
+
+  it('keeps vocabulary intact when other learning records are written', () => {
+    const entry: VocabularyEntry = {
+      id: 'vocab-a',
+      term: 'bonjour',
+      translation: '你好',
+      context: 'Bonjour !',
+      articleId: 'a',
+      articleTitle: 'Titre',
+      createdAt: T1,
+      updatedAt: T1,
+    };
+    writeStudyRecords({
+      readingSessions: [],
+      practiceSessions: [],
+      readingProgress: [],
+      vocabulary: [entry],
+    });
+
+    saveReadingSession({
+      id: 'reading-a',
+      articleId: 'a',
+      startedAt: T2,
+      durationMs: 1_000,
+    });
+
+    expect(readStudyRecords().vocabulary).toEqual([entry]);
   });
 });

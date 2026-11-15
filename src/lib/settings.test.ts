@@ -18,6 +18,8 @@ describe('settings', () => {
       uiLanguage: 'fr',
       onboardingSeen: false,
       practiceTimerVisible: true,
+      theme: 'system',
+      dailyGoal: 1,
     });
   });
 
@@ -61,6 +63,8 @@ describe('settings', () => {
       uiLanguage: 'zh',
       onboardingSeen: false,
       practiceTimerVisible: true,
+      theme: 'system',
+      dailyGoal: 1,
     });
   });
 
@@ -72,6 +76,69 @@ describe('settings', () => {
       uiLanguage: 'zh',
       onboardingSeen: true,
       practiceTimerVisible: false,
+      theme: 'system',
+      dailyGoal: 1,
+    });
+    expect(loadSettings()).toEqual(saved);
+  });
+
+  it('fills theme and daily goal defaults for settings stored by older versions', () => {
+    store({
+      uiLanguage: 'zh',
+      onboardingSeen: true,
+      practiceTimerVisible: false,
+    });
+
+    expect(loadSettings()).toEqual({
+      uiLanguage: 'zh',
+      onboardingSeen: true,
+      practiceTimerVisible: false,
+      theme: 'system',
+      dailyGoal: 1,
+    });
+  });
+
+  it('loads every supported theme and the daily goal boundaries', () => {
+    for (const theme of ['system', 'light', 'dark'] as const) {
+      store({ theme });
+      expect(loadSettings().theme).toBe(theme);
+    }
+
+    for (const dailyGoal of [1, 20]) {
+      store({ dailyGoal });
+      expect(loadSettings().dailyGoal).toBe(dailyGoal);
+    }
+  });
+
+  it('falls back per field when theme or daily goal is malformed', () => {
+    const malformed = [
+      { theme: 'auto' },
+      { theme: null },
+      { dailyGoal: 0 },
+      { dailyGoal: 21 },
+      { dailyGoal: 1.5 },
+      { dailyGoal: '3' },
+      { dailyGoal: Number.NaN },
+    ];
+
+    for (const stored of malformed) {
+      store(stored);
+      const loaded = loadSettings();
+      expect(loaded.theme).toBe('system');
+      expect(loaded.dailyGoal).toBe(1);
+    }
+  });
+
+  it('persists theme and daily goal patches without touching other settings', () => {
+    saveSettings({ uiLanguage: 'zh', practiceTimerVisible: false });
+    const saved = saveSettings({ theme: 'dark', dailyGoal: 12 });
+
+    expect(saved).toEqual({
+      uiLanguage: 'zh',
+      onboardingSeen: false,
+      practiceTimerVisible: false,
+      theme: 'dark',
+      dailyGoal: 12,
     });
     expect(loadSettings()).toEqual(saved);
   });

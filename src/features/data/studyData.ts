@@ -4,7 +4,12 @@ import type {
   PracticeSession,
   ReadingProgress,
   ReadingSession,
+  VocabularyEntry,
 } from '../../types/progress';
+import {
+  mergeVocabularyLists,
+  normalizeVocabularyEntry,
+} from '../vocabulary/vocabulary';
 import {
   isFiniteNonNegative,
   isIntegerNonNegative,
@@ -26,6 +31,29 @@ export interface StudyRecords {
   readingSessions: StoredReadingSession[];
   practiceSessions: StoredPracticeSession[];
   readingProgress: ReadingProgress[];
+  /** Optional for callers and fixtures written before vocabulary existed. */
+  vocabulary?: VocabularyEntry[];
+}
+
+const LOCAL_DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Accepts only a real local calendar day in YYYY-MM-DD form. */
+export function isLocalDateKeyString(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const match = LOCAL_DAY_PATTERN.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1000 || month < 1 || month > 12 || day < 1 || day > 31) {
+    return false;
+  }
+  const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
 }
 
 function hashString(value: string): string {
@@ -114,9 +142,21 @@ export function normalizePracticeSession(
   ) {
     return null;
   }
+  if (
+    value.completedAt !== undefined &&
+    !isIsoDateString(value.completedAt)
+  ) {
+    return null;
+  }
+  if (
+    value.completedDay !== undefined &&
+    !isLocalDateKeyString(value.completedDay)
+  ) {
+    return null;
+  }
   const id = isNonEmptyString(value.id) ? value.id : fallbackId;
   if (!id) return null;
-  return {
+  const session: StoredPracticeSession = {
     id,
     articleId: value.articleId,
     startedAt: value.startedAt,
@@ -126,6 +166,13 @@ export function normalizePracticeSession(
     answers,
     markedWords: value.markedWords,
   };
+  if (value.completedAt !== undefined) {
+    session.completedAt = value.completedAt;
+  }
+  if (value.completedDay !== undefined) {
+    session.completedDay = value.completedDay;
+  }
+  return session;
 }
 
 export function normalizeReadingProgress(value: unknown): ReadingProgress | null {
@@ -168,6 +215,16 @@ function normalizePracticeList(value: unknown): StoredPracticeSession[] {
   return sessions;
 }
 
+function normalizeVocabularyList(value: unknown): VocabularyEntry[] {
+  if (!Array.isArray(value)) return [];
+  const entries: VocabularyEntry[] = [];
+  for (const raw of value) {
+    const entry = normalizeVocabularyEntry(raw);
+    if (entry) entries.push(entry);
+  }
+  return mergeVocabularyLists(entries);
+}
+
 function normalizeProgressList(value: unknown): ReadingProgress[] {
   if (!Array.isArray(value)) return [];
   const byArticle = new Map<string, ReadingProgress>();
@@ -207,6 +264,7 @@ function readCanonical(): StudyRecords | null {
       readingSessions: normalizeReadingList(parsed.readingSessions),
       practiceSessions: normalizePracticeList(parsed.practiceSessions),
       readingProgress: normalizeProgressList(parsed.readingProgress ?? []),
+      vocabulary: normalizeVocabularyList(parsed.vocabulary),
     };
   } catch {
     return null;
@@ -222,6 +280,7 @@ function readLegacy(): StudyRecords {
       readJSON<unknown>(PRACTICE_SESSIONS_KEY, []),
     ),
     readingProgress: [],
+    vocabulary: [],
   };
 }
 
@@ -239,6 +298,7 @@ export function writeStudyRecords(records: StudyRecords): void {
     readingSessions: records.readingSessions,
     practiceSessions: records.practiceSessions,
     readingProgress: records.readingProgress,
+    vocabulary: records.vocabulary ?? [],
   });
 }
 

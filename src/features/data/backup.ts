@@ -1,6 +1,21 @@
-import { loadSettings, writeSettingsStrict } from '../../lib/settings';
+import {
+  DEFAULT_DAILY_GOAL,
+  DEFAULT_THEME,
+  isThemePreference,
+  isValidDailyGoal,
+  loadSettings,
+  writeSettingsStrict,
+} from '../../lib/settings';
 import { readRaw, removeRaw, writeJSONStrict, writeRaw } from '../../lib/storage';
-import type { ReadingProgress, Settings } from '../../types/progress';
+import type {
+  ReadingProgress,
+  Settings,
+  VocabularyEntry,
+} from '../../types/progress';
+import {
+  mergeVocabularyLists,
+  normalizeVocabularyEntry,
+} from '../vocabulary/vocabulary';
 import {
   PREVIOUS_BACKUP_KEY,
   STUDY_DATA_KEY,
@@ -20,19 +35,22 @@ import {
 } from './validation';
 
 export const STUDY_BACKUP_FORMAT = 'frp-study-backup';
-export const STUDY_BACKUP_VERSION = 1;
+export const STUDY_BACKUP_VERSION = 2;
 export const MAX_BACKUP_BYTES = 10 * 1024 * 1024;
 
 export interface StudyData {
   readingSessions: StoredReadingSession[];
   practiceSessions: StoredPracticeSession[];
   readingProgress: ReadingProgress[];
+  /** Optional so older fixtures and callers still type-check; read defaults to []. */
+  vocabulary?: VocabularyEntry[];
   settings: Settings;
 }
 
 export interface StudyBackup {
   format: typeof STUDY_BACKUP_FORMAT;
-  version: typeof STUDY_BACKUP_VERSION;
+  /** v2 adds vocabulary; v1 files are still accepted on import. */
+  version: 1 | 2;
   exportedAt: string;
   data: StudyData;
 }
@@ -92,8 +110,31 @@ function mergePracticeRecords(
   ) {
     throw new Error('Inconsistent backup practice session records.');
   }
+  if (
+    left.completedAt !== undefined &&
+    right.completedAt !== undefined &&
+    left.completedAt !== right.completedAt
+  ) {
+    throw new Error('Inconsistent backup practice session records.');
+  }
+  if (
+    left.completedDay !== undefined &&
+    right.completedDay !== undefined &&
+    left.completedDay !== right.completedDay
+  ) {
+    throw new Error('Inconsistent backup practice session records.');
+  }
   const markedWords = [...new Set([...left.markedWords, ...right.markedWords])];
-  return { ...left, markedWords };
+  const merged: StoredPracticeSession = { ...left, markedWords };
+  const completedAt = left.completedAt ?? right.completedAt;
+  const completedDay = left.completedDay ?? right.completedDay;
+  if (completedAt !== undefined) {
+    merged.completedAt = completedAt;
+  }
+  if (completedDay !== undefined) {
+    merged.completedDay = completedDay;
+  }
+  return merged;
 }
 
 function compareIds(left: { id: string }, right: { id: string }): number {
@@ -115,10 +156,21 @@ function parseSettings(value: unknown): Settings {
   ) {
     throw new Error('Invalid backup settings.');
   }
+  const theme = value.theme === undefined ? DEFAULT_THEME : value.theme;
+  if (!isThemePreference(theme)) {
+    throw new Error('Invalid backup settings.');
+  }
+  const dailyGoal =
+    value.dailyGoal === undefined ? DEFAULT_DAILY_GOAL : value.dailyGoal;
+  if (!isValidDailyGoal(dailyGoal)) {
+    throw new Error('Invalid backup settings.');
+  }
   return {
     uiLanguage: value.uiLanguage,
     onboardingSeen: value.onboardingSeen,
     practiceTimerVisible: value.practiceTimerVisible,
+    theme,
+    dailyGoal,
   };
 }
 
@@ -175,10 +227,25 @@ function parseData(value: unknown): StudyData {
     }
   }
 
+  const vocabulary: VocabularyEntry[] = [];
+  if (value.vocabulary !== undefined) {
+    if (!Array.isArray(value.vocabulary)) {
+      throw new Error('Invalid backup vocabulary.');
+    }
+    for (const raw of value.vocabulary) {
+      const entry = normalizeVocabularyEntry(raw);
+      if (!entry) {
+        throw new Error('Invalid backup vocabulary entry.');
+      }
+      vocabulary.push(entry);
+    }
+  }
+
   return {
     readingSessions: [...readingById.values()],
     practiceSessions: [...practiceById.values()],
     readingProgress: [...progressByArticle.values()],
+    vocabulary: mergeVocabularyLists(vocabulary),
     settings: parseSettings(value.settings),
   };
 }
@@ -224,7 +291,7 @@ export function parseBackup(input: string | unknown): StudyBackup {
   if (value.format !== STUDY_BACKUP_FORMAT) {
     throw new Error('Unsupported backup format.');
   }
-  if (value.version !== STUDY_BACKUP_VERSION) {
+  if (value.version !== 1 && value.version !== 2) {
     throw new Error('Unsupported backup version.');
   }
   if (!isIsoDateString(value.exportedAt)) {
@@ -289,6 +356,10 @@ function mergeData(local: StudyData, remote: StudyData): StudyData {
     readingSessions: [...readingById.values()].sort(compareIds),
     practiceSessions: [...practiceById.values()].sort(compareIds),
     readingProgress: mergeProgress(local.readingProgress, remote.readingProgress),
+    vocabulary: mergeVocabularyLists(
+      local.vocabulary ?? [],
+      remote.vocabulary ?? [],
+    ),
     settings: { ...local.settings },
   };
 }

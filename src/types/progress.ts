@@ -18,6 +18,10 @@ export interface PracticeSession {
   articleId: string;
   startedAt: string;
   durationMs: number;
+  /** Submission time; absent on records written before learning tools. */
+  completedAt?: string;
+  /** Local calendar day (YYYY-MM-DD) of submission; absent on old records. */
+  completedDay?: string;
   score: number;
   total: number;
   answers: PracticeAnswer[];
@@ -34,8 +38,30 @@ export interface ReadingProgress {
 
 export type UiLanguage = 'fr' | 'zh';
 
+export type ThemePreference = 'system' | 'light' | 'dark';
+
 export interface Settings {
   uiLanguage: UiLanguage;
   onboardingSeen: boolean;
   practiceTimerVisible: boolean;
+  /** Optional so settings literals written before themes still compile. */
+  theme?: ThemePreference;
+  /** Daily target in articles, 1-20; optional for old settings literals. */
+  dailyGoal?: number;
+}
+
+export interface VocabularyEntry {
+  /** Stable id derived from the article and normalized term. */
+  id: string;
+  term: string;
+  /** Editable Chinese translation; empty until the learner fills it in. */
+  translation: string;
+  /** Sentence or phrase from the source article. */
+  context: string;
+  articleId: string;
+  articleTitle: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Tombstone time; a deleted entry stays for merge conflict resolution. */
+  deletedAt?: string;
 }

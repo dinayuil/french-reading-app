@@ -13,11 +13,18 @@ import {
 import {
   PREVIOUS_BACKUP_KEY,
   getReadingProgress,
+  readStudyRecords,
   savePracticeSession,
   saveReadingProgress,
   saveReadingSession,
+  writeStudyRecords,
 } from './studyData';
 import { DEFAULT_SETTINGS } from '../../lib/settings';
+import {
+  addVocabulary,
+  deleteVocabulary,
+  listVocabulary,
+} from '../vocabulary/vocabulary';
 import type { StudyBackup, StudyData } from './backup';
 import type {
   PracticeAnswer,
@@ -25,6 +32,7 @@ import type {
   ReadingProgress,
   ReadingSession,
   Settings,
+  VocabularyEntry,
 } from '../../types/progress';
 
 const T0 = '2026-10-31T10:00:00.000Z';
@@ -37,6 +45,8 @@ const zhSettings: Settings = {
   uiLanguage: 'zh',
   onboardingSeen: true,
   practiceTimerVisible: false,
+  theme: 'dark',
+  dailyGoal: 8,
 };
 
 type StoredReadingSession = ReadingSession & { id: string };
@@ -101,9 +111,37 @@ function makeBackup(
 ): StudyBackup {
   return {
     format: 'frp-study-backup',
+    version: 2,
+    exportedAt,
+    data,
+  };
+}
+
+function makeV1Backup(
+  data: StudyData,
+  exportedAt = T3,
+): StudyBackup {
+  return {
+    format: 'frp-study-backup',
     version: 1,
     exportedAt,
     data,
+  };
+}
+
+function vocabularyEntry(
+  overrides: Partial<VocabularyEntry> = {},
+): VocabularyEntry {
+  return {
+    id: 'vocab-a',
+    term: 'bonjour',
+    translation: '你好',
+    context: 'Bonjour le monde.',
+    articleId: 'article-a',
+    articleTitle: 'Article A',
+    createdAt: T1,
+    updatedAt: T2,
+    ...overrides,
   };
 }
 
@@ -130,7 +168,7 @@ describe('study backups', () => {
 
     expect(setItem).not.toHaveBeenCalled();
     expect(backup.format).toBe('frp-study-backup');
-    expect(backup.version).toBe(1);
+    expect(backup.version).toBe(2);
     expect(new Date(backup.exportedAt).toISOString()).toBe(backup.exportedAt);
     expect(backup.data.settings).toEqual(zhSettings);
     expect(backup.data.readingSessions).toHaveLength(1);
@@ -459,6 +497,16 @@ describe('study backups', () => {
 
     expect(hasPreviousBackup()).toBe(true);
 
+    localStorage.setItem(
+      `frp:${PREVIOUS_BACKUP_KEY}`,
+      JSON.stringify(
+        makeV1Backup(
+          makeData({ readingSessions: [readingSession()] }),
+        ),
+      ),
+    );
+    expect(hasPreviousBackup()).toBe(true);
+
     localStorage.setItem(`frp:${PREVIOUS_BACKUP_KEY}`, '{not json');
     expect(hasPreviousBackup()).toBe(false);
     expect(localStorage.getItem(`frp:${PREVIOUS_BACKUP_KEY}`)).toBe(
@@ -467,7 +515,7 @@ describe('study backups', () => {
 
     localStorage.setItem(
       `frp:${PREVIOUS_BACKUP_KEY}`,
-      JSON.stringify({ ...previous, version: 2 }),
+      JSON.stringify({ ...previous, version: 3 }),
     );
     expect(hasPreviousBackup()).toBe(false);
     expect(localStorage.getItem(`frp:${PREVIOUS_BACKUP_KEY}`)).not.toBeNull();
@@ -697,7 +745,7 @@ describe('study backups', () => {
     const invalidBackups: unknown[] = [
       'not json',
       { ...valid, format: 'other-format' },
-      { ...valid, version: 2 },
+      { ...valid, version: 3 },
       { ...valid, exportedAt: 'yesterday' },
       {
         ...valid,
@@ -780,6 +828,271 @@ describe('study backups', () => {
       position: 0.8,
       updatedAt: T2,
     });
+  });
+
+  it('upgrades a v1 backup, defaults new settings and keeps the old records', () => {
+    const oldSettings = {
+      uiLanguage: 'zh',
+      onboardingSeen: true,
+      practiceTimerVisible: false,
+    } as Settings;
+    const v1 = makeV1Backup(
+      makeData({
+        readingSessions: [readingSession()],
+        practiceSessions: [practiceSession()],
+        readingProgress: [progress()],
+        settings: oldSettings,
+      }),
+    );
+
+    const parsed = parseBackup(v1);
+
+    expect(parsed.version).toBe(2);
+    expect(parsed.data.vocabulary).toEqual([]);
+    expect(parsed.data.settings).toEqual({
+      ...oldSettings,
+      theme: 'system',
+      dailyGoal: 1,
+    });
+    expect(parsed.data.readingSessions).toEqual([readingSession()]);
+    expect(parsed.data.practiceSessions).toEqual([practiceSession()]);
+    expect(parsed.data.readingProgress).toEqual([progress()]);
+
+    applyBackup(v1, 'replace');
+    const data = readStudyData();
+    expect(data.readingSessions).toEqual([readingSession()]);
+    expect(data.practiceSessions).toEqual([practiceSession()]);
+    expect(data.settings).toEqual({
+      ...oldSettings,
+      theme: 'system',
+      dailyGoal: 1,
+    });
+    expect(data.vocabulary).toEqual([]);
+  });
+
+  it('round-trips vocabulary tombstones through a v2 backup', () => {
+    const live = addVocabulary({
+      term: 'bonjour',
+      translation: '你好',
+      context: 'Bonjour le monde.',
+      articleId: 'article-a',
+      articleTitle: 'Article A',
+    });
+    const removed = addVocabulary({
+      term: 'merci',
+      articleId: 'article-b',
+      articleTitle: 'Article B',
+    });
+    deleteVocabulary(removed.id);
+
+    const backup = createBackup();
+    expect(backup.version).toBe(2);
+    expect(backup.data.vocabulary).toHaveLength(2);
+    expect(
+      backup.data.vocabulary?.find((item) => item.id === removed.id)?.deletedAt,
+    ).toEqual(expect.any(String));
+
+    const parsed = parseBackup(JSON.stringify(backup));
+    expect(parsed.data.vocabulary).toEqual(backup.data.vocabulary);
+
+    localStorage.clear();
+    applyBackup(parsed, 'replace');
+
+    expect(listVocabulary().map((item) => item.id)).toEqual([live.id]);
+    expect(readStudyData().vocabulary).toHaveLength(2);
+  });
+
+  it('rejects malformed new backup fields without writing', () => {
+    seedSettings(zhSettings);
+    saveReadingSession(readingSession());
+    const valid = makeBackup(
+      makeData({ readingSessions: [readingSession()], settings: frSettings }),
+    );
+    const originalData = localStorage.getItem('frp:study-data');
+    const originalSettings = localStorage.getItem('frp:settings');
+    const invalidBackups: unknown[] = [
+      {
+        ...valid,
+        data: { ...valid.data, vocabulary: 'not-an-array' },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          vocabulary: [{ ...vocabularyEntry(), term: '' }],
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          vocabulary: [{ ...vocabularyEntry(), deletedAt: 'yesterday' }],
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          vocabulary: [{ ...vocabularyEntry(), updatedAt: '2026-13-01' }],
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          practiceSessions: [practiceSession({ completedAt: 'not-a-date' })],
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          practiceSessions: [
+            practiceSession({ completedDay: '2026-02-31' }),
+          ],
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          settings: { ...frSettings, theme: 'auto' },
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          settings: { ...frSettings, dailyGoal: 0 },
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          settings: { ...frSettings, dailyGoal: 21 },
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          settings: { ...frSettings, dailyGoal: 1.5 },
+        },
+      },
+    ];
+
+    for (const invalid of invalidBackups) {
+      expect(() => parseBackup(invalid)).toThrow();
+      expect(() => applyBackup(invalid as StudyBackup, 'replace')).toThrow();
+      expect(localStorage.getItem('frp:study-data')).toBe(originalData);
+      expect(localStorage.getItem('frp:settings')).toBe(originalSettings);
+    }
+  });
+
+  it('merges vocabulary tombstones deterministically and never resurrects an older deletion', () => {
+    const deleted = vocabularyEntry({
+      updatedAt: T2,
+      deletedAt: T2,
+    });
+    const olderLive = vocabularyEntry({ updatedAt: T1 });
+    const local = makeBackup(makeData({ vocabulary: [deleted] }));
+    const remote = makeBackup(makeData({ vocabulary: [olderLive] }));
+
+    for (const [left, right] of [
+      [local, remote],
+      [remote, local],
+    ] as const) {
+      const merged = mergeBackups(left, right);
+      expect(merged.data.vocabulary).toHaveLength(1);
+      expect(merged.data.vocabulary?.[0]).toEqual(deleted);
+      expect(() => parseBackup(merged)).not.toThrow();
+    }
+  });
+
+  it('lets the deletion win when a live and a deleted copy share a timestamp', () => {
+    const deleted = vocabularyEntry({ updatedAt: T2, deletedAt: T2 });
+    const live = vocabularyEntry({ updatedAt: T2 });
+    const local = makeBackup(makeData({ vocabulary: [live] }));
+    const remote = makeBackup(makeData({ vocabulary: [deleted] }));
+
+    for (const [left, right] of [
+      [local, remote],
+      [remote, local],
+    ] as const) {
+      expect(mergeBackups(left, right).data.vocabulary?.[0]).toEqual(deleted);
+    }
+  });
+
+  it('does not resurrect a deleted vocabulary entry through repeated v2 imports', () => {
+    const staleLive = vocabularyEntry({ updatedAt: T1, createdAt: T1 });
+    const localTombstone = vocabularyEntry({
+      updatedAt: T2,
+      deletedAt: T2,
+    });
+    writeStudyRecords({
+      readingSessions: [],
+      practiceSessions: [],
+      readingProgress: [],
+      vocabulary: [localTombstone],
+    });
+    const staleBackup = makeBackup(
+      makeData({ vocabulary: [staleLive] }),
+    );
+
+    applyBackup(staleBackup, 'merge');
+    applyBackup(staleBackup, 'merge');
+
+    const records = readStudyRecords();
+    expect(records.vocabulary).toHaveLength(1);
+    expect(records.vocabulary?.[0]).toEqual(localTombstone);
+    expect(listVocabulary()).toEqual([]);
+  });
+
+  it('imports the same v2 vocabulary repeatedly without duplicates', () => {
+    const remote = makeBackup(
+      makeData({
+        vocabulary: [
+          vocabularyEntry(),
+          vocabularyEntry({ id: 'vocab-b', term: 'merci', articleId: 'article-b' }),
+        ],
+      }),
+    );
+
+    applyBackup(remote, 'merge');
+    applyBackup(remote, 'merge');
+
+    expect(readStudyData().vocabulary).toHaveLength(2);
+    expect(listVocabulary()).toHaveLength(2);
+    expect(
+      listVocabulary().map((item) => item.id).sort(),
+    ).toEqual(['vocab-a', 'vocab-b']);
+  });
+
+  it('keeps the local settings and vocabulary when merging an older v1 backup', () => {
+    seedSettings(zhSettings);
+    addVocabulary({
+      term: 'bonjour',
+      translation: '你好',
+      articleId: 'article-local',
+      articleTitle: 'Article local',
+    });
+    const v1 = makeV1Backup(
+      makeData({
+        readingSessions: [
+          readingSession({ id: 'reading-remote', articleId: 'article-remote' }),
+        ],
+        settings: frSettings,
+      }),
+    );
+
+    applyBackup(v1, 'merge');
+
+    expect(readStudyData().settings).toEqual(zhSettings);
+    expect(listVocabulary()).toHaveLength(1);
+    expect(readStudyData().readingSessions.map((item) => item.id)).toEqual([
+      'reading-remote',
+    ]);
   });
 
   it('summarizes the study data without advanced analytics', () => {
