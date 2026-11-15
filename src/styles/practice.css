@@ -77,42 +77,6 @@
   white-space: pre-line;
 }
 
-/* Marked words */
-.practice-marks {
-  max-width: var(--measure);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  margin-block: var(--space-2) var(--space-6);
-  padding: var(--space-3);
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.practice-marks__label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-muted);
-}
-
-.practice-marks__list {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.practice-mark {
-  padding: var(--space-1) var(--space-3);
-  border-radius: 9999px;
-  background-color: var(--color-accent-light);
-  color: var(--color-accent);
-  font-family: var(--font-article);
-  font-size: 0.9375rem;
-}
-
 /* Result banner */
 .practice-result {
   max-width: var(--measure);
@@ -364,13 +328,6 @@
   margin-block: 0;
 }
 
-.practice-save-error--toolbar {
-  max-width: min(22rem, calc(100vw - 2rem));
-  margin: 0 0 var(--space-2);
-  box-shadow: var(--shadow-md);
-  text-align: left;
-}
-
 .practice-actions {
   margin-bottom: var(--space-8);
 }
@@ -388,19 +345,6 @@
 .practice-actions__link:hover {
   border-color: var(--color-accent);
   text-decoration: none;
-}
-
-/* Secondary selection action (available only after submit) */
-.selection-toolbar__button--secondary {
-  margin-left: var(--space-2);
-  background-color: var(--color-surface);
-  color: var(--color-accent);
-  border: 1px solid var(--color-border);
-  box-shadow: none;
-}
-
-.selection-toolbar__button--secondary:hover {
-  background-color: var(--color-accent-light);
 }
 
 @media (min-width: 640px) {
@@ -432,50 +376,34 @@
 }
 
 /* Marked words can be added to the notebook after submitting */
-.practice-mark {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.practice-mark__add {
+.marked-terms__add {
   appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  flex: none;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  border: 1px solid var(--color-accent-border);
+  border: 1px solid var(--color-mark-underline);
   border-radius: 50%;
   background-color: var(--color-surface);
-  color: var(--color-accent);
+  color: var(--color-mark-text);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
 }
 
-.practice-mark__add:hover {
-  background-color: var(--color-surface);
-  border-color: var(--color-accent);
+.marked-terms__add:hover {
+  border-color: var(--color-mark-underline);
+  background-color: var(--color-mark-chip-hover);
 }
 
-.practice-mark__add--done {
+.marked-terms__add--done {
   border-color: var(--color-success);
   background-color: var(--color-success-light);
   color: var(--color-success-text);
   cursor: default;
-}
-
-.practice-marks__status {
-  flex-basis: 100%;
-  color: var(--color-success-text);
-  font-size: 0.8125rem;
-}
-
-.practice-marks__link {
-  color: var(--color-accent);
-  font-weight: 700;
 }
 
 .practice-actions {

@@ -1,13 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import PracticePage from './PracticePage';
+import ReadPage from './ReadPage';
 import { resolveArticleById } from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
 import { i18n } from '../i18n';
 import { readStudyData } from '../features/data/backup';
+import { savePracticeSession } from '../features/data/studyData';
+import {
+  createPracticeDraft,
+  savePracticeDraft,
+} from '../features/practice/practiceDraft';
 import { listVocabulary } from '../features/vocabulary/vocabulary';
+import { listArticleMarks } from '../features/marks/articleMarks';
 import type { Article, ArticleImage } from '../types/content';
 
 vi.mock('../lib/content', () => ({
@@ -146,6 +153,16 @@ function renderPractice(path = '/practice/2026-11-09-tour-eiffel') {
       <Routes>
         <Route path="/practice/:id" element={<PracticePage />} />
         <Route path="/practice" element={<PracticePage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function renderRead(path = '/read/2026-11-09-tour-eiffel') {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/read/:id" element={<ReadPage />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -730,17 +747,25 @@ describe('PracticePage', () => {
     });
   });
 
-  it('marks a selected word and saves it with the practice session', async () => {
-    mockSelection('flâner');
+  it('marks before submit, highlights the word and stores it in the shared collection', async () => {
+    mockSelection('monument');
 
-    const { unmount } = renderPractice();
+    const { container, unmount } = renderPractice();
 
     await screen.findByRole('heading', { name: article.title });
 
     await userEvent.click(screen.getByTestId('article-body'));
     await userEvent.click(await screen.findByTestId('mark-word'));
 
-    expect(screen.getByText('flâner')).toBeInTheDocument();
+    const highlights = container.querySelectorAll('.mark-highlight');
+    expect(highlights).toHaveLength(1);
+    expect(highlights[0]).toHaveTextContent('monument');
+    expect(listArticleMarks(article.id)).toEqual(['monument']);
+    expect(listVocabulary()).toHaveLength(0);
+    expect(container.querySelector('.gloss-term')).toBeNull();
+    expect(
+      screen.getByRole('region', { name: 'Mots marqués' }),
+    ).toBeInTheDocument();
 
     await userEvent.click(
       screen.getByRole('button', { name: 'Valider mes réponses' }),
@@ -749,7 +774,78 @@ describe('PracticePage', () => {
 
     const sessions = readStoredSessions();
     expect(sessions).toHaveLength(1);
-    expect(sessions[0].markedWords).toEqual(['flâner']);
+    expect(sessions[0].markedWords).toEqual([]);
+    expect(listArticleMarks(article.id)).toEqual(['monument']);
+  });
+
+  it('offers to remove an already marked word before submitting', async () => {
+    mockSelection('monument');
+
+    const { container } = renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    await userEvent.click(screen.getByTestId('article-body'));
+    await userEvent.click(await screen.findByTestId('mark-word'));
+
+    mockSelection('monument');
+    await userEvent.click(screen.getByTestId('article-body'));
+
+    const unmark = await screen.findByTestId('unmark-word');
+    expect(unmark).toHaveTextContent('Retirer la marque');
+    await userEvent.click(unmark);
+
+    expect(container.querySelector('.mark-highlight')).toBeNull();
+    expect(listArticleMarks(article.id)).toEqual([]);
+    expect(
+      screen.queryByRole('region', { name: 'Mots marqués' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('seeds historical practice marks into the shared highlight before submitting', async () => {
+    savePracticeSession({
+      id: 'practice-history',
+      articleId: article.id,
+      startedAt: '2026-11-01T10:00:00.000Z',
+      durationMs: 60_000,
+      score: 0,
+      total: 2,
+      answers: [],
+      markedWords: ['monument'],
+    });
+
+    const { container } = renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    const highlights = container.querySelectorAll('.mark-highlight');
+    expect(highlights).toHaveLength(1);
+    expect(highlights[0]).toHaveTextContent('monument');
+    expect(
+      within(
+        screen.getByRole('region', { name: 'Mots marqués' }),
+      ).getByText('monument'),
+    ).toBeInTheDocument();
+    expect(container.querySelector('.gloss-term')).toBeNull();
+    expect(readStoredSessions()).toHaveLength(1);
+  });
+
+  it('seeds marks restored from the current practice draft', async () => {
+    const draft = createPracticeDraft({
+      article,
+      id: 'practice-draft-marks',
+      startedAt: '2026-11-01T10:00:00.000Z',
+      rng: () => 0,
+    });
+    savePracticeDraft({ ...draft, markedWords: ['monument'] });
+
+    const { container } = renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+
+    const highlights = container.querySelectorAll('.mark-highlight');
+    expect(highlights).toHaveLength(1);
+    expect(highlights[0]).toHaveTextContent('monument');
+    expect(
+      screen.getByRole('region', { name: 'Mots marqués' }),
+    ).toBeInTheDocument();
   });
 
   it('scores answers and unlocks explanations, glossary and translations after submit', async () => {
@@ -1259,7 +1355,8 @@ describe('PracticePage', () => {
     expect(screen.getByTestId('mark-word')).toBeInTheDocument();
     await user.click(screen.getByTestId('mark-word'));
 
-    expect(readStoredSessions()[0].markedWords).toEqual(['relire']);
+    expect(listArticleMarks(article.id)).toContain('relire');
+    expect(readStoredSessions()[0].markedWords).toEqual([]);
   });
 
   it('keeps the selection when marking fails, then retries', async () => {
@@ -1290,7 +1387,7 @@ describe('PracticePage', () => {
     await userEvent.click(mark);
 
     expect(screen.getByRole('alert')).toHaveTextContent(
-      "Impossible d'enregistrer ce mot. Réessayez.",
+      "Impossible d'enregistrer la marque. Réessayez.",
     );
     expect(screen.getByTestId('mark-word')).toBeInTheDocument();
 
@@ -1299,6 +1396,7 @@ describe('PracticePage', () => {
 
     expect(await screen.findByText('flâner')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(listArticleMarks(article.id)).toContain('flâner');
   });
 
   it('ignores a stale translation result after switching terms', async () => {
@@ -1328,5 +1426,82 @@ describe('PracticePage', () => {
 
     expect(screen.queryByText('旧翻译')).not.toBeInTheDocument();
     expect(screen.getByRole('dialog')).toHaveTextContent('巴黎市');
+  });
+
+  it('shows marks from a valid legacy draft in reading and does not revive them after removal', async () => {
+    const draft = createPracticeDraft({
+      article,
+      id: 'practice-draft-legacy-marks',
+      startedAt: '2026-11-01T10:00:00.000Z',
+      rng: () => 0,
+    });
+    savePracticeDraft({ ...draft, markedWords: ['monument'] });
+
+    const reading = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    const highlights = reading.container.querySelectorAll('.mark-highlight');
+    expect(highlights).toHaveLength(1);
+    expect(highlights[0]).toHaveTextContent('monument');
+
+    const markedRegion = screen.getByRole('region', {
+      name: 'Mots marqués',
+    });
+    await userEvent.click(
+      within(markedRegion).getByRole('button', {
+        name: 'Retirer la marque de « monument »',
+      }),
+    );
+
+    expect(reading.container.querySelector('.mark-highlight')).toBeNull();
+    expect(listArticleMarks(article.id, ['monument'])).toEqual([]);
+    reading.unmount();
+
+    const practice = renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+    expect(practice.container.querySelector('.mark-highlight')).toBeNull();
+    expect(
+      screen.queryByRole('region', { name: 'Mots marqués' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shares marks between practice and reading, and removal survives remounts', async () => {
+    mockSelection('monument');
+
+    const practice = renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(screen.getByTestId('article-body'));
+    await userEvent.click(await screen.findByTestId('mark-word'));
+
+    expect(listVocabulary()).toHaveLength(0);
+    expect(listArticleMarks(article.id)).toEqual(['monument']);
+    practice.unmount();
+
+    const reading = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+
+    const highlights = reading.container.querySelectorAll('.mark-highlight');
+    expect(highlights).toHaveLength(1);
+    expect(highlights[0]).toHaveTextContent('monument');
+
+    const markedRegion = screen.getByRole('region', {
+      name: 'Mots marqués',
+    });
+    await userEvent.click(
+      within(markedRegion).getByRole('button', {
+        name: 'Retirer la marque de « monument »',
+      }),
+    );
+
+    expect(reading.container.querySelector('.mark-highlight')).toBeNull();
+    reading.unmount();
+
+    const practiceAgain = renderPractice();
+    await screen.findByRole('heading', { name: article.title });
+    expect(practiceAgain.container.querySelector('.mark-highlight')).toBeNull();
+    expect(
+      screen.queryByRole('region', { name: 'Mots marqués' }),
+    ).not.toBeInTheDocument();
+    expect(listArticleMarks(article.id)).toEqual([]);
   });
 });

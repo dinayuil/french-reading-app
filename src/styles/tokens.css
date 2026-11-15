@@ -33,6 +33,15 @@
   --color-shadow-medium: rgba(31, 41, 55, 0.1);
   --color-shadow-strong: rgba(31, 41, 55, 0.16);
   --color-highlight: var(--color-surface-subtle);
+  /* Warm shared word marks, distinct from the blue glossary underline. */
+  --color-mark-bg: #fbe3a8;
+  --color-mark-text: #3b2a05;
+  --color-mark-underline: #a56a0a;
+  --color-mark-chip-bg: #f7e6bd;
+  --color-mark-chip-hover: rgba(201, 138, 18, 0.2);
+  --color-mark-action-bg: #f3cf7a;
+  --color-mark-action-text: #352402;
+  --color-mark-action-hover: #ecc262;
 
   /* Spacing scale */
   --space-1: 0.25rem;  /* 4px */
@@ -95,4 +104,12 @@
   --color-shadow-medium: rgba(0, 0, 0, 0.46);
   --color-shadow-strong: rgba(0, 0, 0, 0.6);
   --color-highlight: #252b33;
+  --color-mark-bg: #5a4314;
+  --color-mark-text: #ffe8b0;
+  --color-mark-underline: #efb64a;
+  --color-mark-chip-bg: #3b2f16;
+  --color-mark-chip-hover: rgba(239, 182, 74, 0.2);
+  --color-mark-action-bg: #6a4f17;
+  --color-mark-action-text: #ffe8b0;
+  --color-mark-action-hover: #7d5e1f;
 }

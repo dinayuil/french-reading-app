@@ -75,9 +75,16 @@ const fr = {
     added: 'Ajouté',
     addVocabularyError: "Impossible d'ajouter ce mot au carnet. Réessayez.",
     viewVocabulary: 'Voir le carnet',
-    selectionActions: 'Actions sur le texte sélectionné',
     selectedText: 'Texte sélectionné',
     termAria: '{{term}} : {{explanation}}',
+  },
+  marks: {
+    mark: 'Marquer',
+    unmark: 'Retirer la marque',
+    markedWords: 'Mots marqués',
+    selectionActions: 'Actions sur le texte sélectionné',
+    removeAria: 'Retirer la marque de « {{term}} »',
+    saveError: "Impossible d'enregistrer la marque. Réessayez.",
   },
   practice: {
     loading: "Chargement de l'exercice…",
@@ -92,7 +99,6 @@ const fr = {
     submit: 'Valider mes réponses',
     submitHint: 'Les questions sans réponse comptent comme fausses.',
     saveErrorSubmit: "Impossible d'enregistrer vos réponses. Réessayez.",
-    saveErrorMark: "Impossible d'enregistrer ce mot. Réessayez.",
     saveErrorAnswer:
       "Impossible d'enregistrer cette réponse. Vérifiez l'espace disponible, puis réessayez.",
     score: 'Score : {{score}} / {{total}}',
@@ -104,8 +110,6 @@ const fr = {
     timerAria: "Temps de l'exercice",
     back: 'Retour à la lecture',
     reread: "Relire l'article",
-    markedWords: 'Mots marqués',
-    mark: 'Marquer',
     addToVocabulary: 'Ajouter au carnet',
     addWithTranslation: 'Ajouter avec cette traduction',
     addedToVocabulary: 'Ajouté au carnet.',
@@ -125,7 +129,6 @@ const fr = {
     translate: 'Traduire',
     translating: 'Recherche en cours…',
     translateError: 'La traduction a échoué. Réessayez plus tard.',
-    markAria: 'Actions sur le texte sélectionné',
     questionNumber: 'Question {{number}}',
     termAria: '{{term}} : {{explanation}}',
   },
@@ -343,11 +346,11 @@ const fr = {
       "Comment lire les textes, faire les exercices et régler l'interface.",
     read: {
       title: 'Lecture',
-      body: "Cliquez sur un mot pour afficher son explication. Sélectionnez un passage pour le traduire. Le bouton « Traduction chinoise » affiche la traduction sous le titre, le résumé et chaque phrase.",
+      body: "Cliquez sur un mot pour afficher son explication. Sélectionnez un passage pour le traduire. Le bouton « Traduction chinoise » affiche la traduction sous le titre, le résumé et chaque phrase. Vous pouvez aussi marquer un mot ou une expression : il reste surligné dans la lecture et dans l'exercice du même article.",
     },
     practice: {
       title: 'Exercices',
-      body: "Pendant un exercice, aucune aide ni traduction n'est disponible avant de valider vos réponses. Le chronomètre peut être masqué et vous pouvez marquer les mots difficiles. Après validation, chaque réponse est expliquée avec la phrase du texte qui la justifie. Si vous refaites l'exercice, chaque tentative validée est enregistrée dans votre navigateur.",
+      body: "Pendant un exercice, aucune aide ni traduction n'est disponible avant de valider vos réponses. Le chronomètre peut être masqué et vous pouvez marquer les mots difficiles : ils restent surlignés dans la lecture du même article. Après validation, chaque réponse est expliquée avec la phrase du texte qui la justifie. Si vous refaites l'exercice, chaque tentative validée est enregistrée dans votre navigateur.",
     },
     language: {
       title: "Langue de l'interface",

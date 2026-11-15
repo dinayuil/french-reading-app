@@ -7,7 +7,7 @@ export interface ArticleSelection {
 }
 
 const CONTROL_SELECTOR =
-  '.selection-toolbar, .explanation-panel, .selection-panel, .practice-marks';
+  '.selection-toolbar, .explanation-panel, .selection-panel, .marked-terms';
 
 function normalizedText(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim();

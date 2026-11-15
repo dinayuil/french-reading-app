@@ -206,6 +206,101 @@
   background-color: var(--color-accent-light);
 }
 
+/* Shared word marks: warm highlight plus a solid underline, so the meaning
+   does not rely on color alone and stays distinct from the dashed glossary
+   underline. No padding or size change keeps text layout and selection still. */
+.mark-highlight {
+  background-color: var(--color-mark-bg);
+  color: var(--color-mark-text);
+  border-radius: 0.2em;
+  box-shadow: inset 0 -0.14em 0 var(--color-mark-underline);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.marked-terms {
+  max-width: var(--measure);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2) var(--space-6);
+  padding: var(--space-3);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.marked-terms__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.marked-terms__list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.marked-terms__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border-radius: 9999px;
+  background-color: var(--color-mark-chip-bg);
+  color: var(--color-mark-text);
+  font-family: var(--font-article);
+  font-size: 0.9375rem;
+}
+
+.marked-terms__term {
+  overflow-wrap: anywhere;
+}
+
+.marked-terms__remove {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: transparent;
+  color: inherit;
+  font-size: 1.125rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.marked-terms__remove:hover {
+  background-color: var(--color-mark-chip-hover);
+}
+
+.marked-terms__status {
+  flex-basis: 100%;
+  color: var(--color-success-text);
+  font-size: 0.8125rem;
+}
+
+.marked-terms__link {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.marked-terms__error {
+  flex-basis: 100%;
+  color: var(--color-danger-text);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
 /* Selection toolbar */
 .selection-toolbar {
   position: fixed;
@@ -230,6 +325,27 @@
 
 .selection-toolbar__button:hover {
   background-color: var(--color-accent-hover);
+}
+
+.selection-toolbar__button--mark {
+  background-color: var(--color-mark-action-bg);
+  color: var(--color-mark-action-text);
+  box-shadow: var(--shadow-md), inset 0 -2px 0 var(--color-mark-underline);
+}
+
+.selection-toolbar__button--mark:hover {
+  background-color: var(--color-mark-action-hover);
+}
+
+.selection-toolbar__button--secondary {
+  background-color: var(--color-surface);
+  color: var(--color-accent);
+  border: 1px solid var(--color-border);
+  box-shadow: none;
+}
+
+.selection-toolbar__button--secondary:hover {
+  background-color: var(--color-accent-light);
 }
 
 /* Explanation panel: fixed on every size so opening it never moves the text

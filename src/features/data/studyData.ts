@@ -1,5 +1,6 @@
 import { readJSON, readRaw, writeJSONStrict } from '../../lib/storage';
 import type {
+  ArticleWordMark,
   PracticeAnswer,
   PracticeSession,
   ReadingProgress,
@@ -33,6 +34,8 @@ export interface StudyRecords {
   readingProgress: ReadingProgress[];
   /** Optional for callers and fixtures written before vocabulary existed. */
   vocabulary?: VocabularyEntry[];
+  /** Optional for callers and fixtures written before shared article marks. */
+  articleMarks?: ArticleWordMark[];
 }
 
 const LOCAL_DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -225,6 +228,30 @@ function normalizeVocabularyList(value: unknown): VocabularyEntry[] {
   return mergeVocabularyLists(entries);
 }
 
+function normalizeArticleMarkList(value: unknown): ArticleWordMark[] {
+  if (!Array.isArray(value)) return [];
+  const marks: ArticleWordMark[] = [];
+  for (const raw of value) {
+    if (!isRecord(raw)) continue;
+    if (!isNonEmptyString(raw.id)) continue;
+    if (!isNonEmptyString(raw.articleId)) continue;
+    if (!isNonEmptyString(raw.term)) continue;
+    if (!isIsoDateString(raw.updatedAt)) continue;
+    if (raw.deletedAt !== undefined && !isIsoDateString(raw.deletedAt)) {
+      continue;
+    }
+    const mark: ArticleWordMark = {
+      id: raw.id,
+      articleId: raw.articleId.trim(),
+      term: raw.term.trim(),
+      updatedAt: raw.updatedAt,
+    };
+    if (raw.deletedAt !== undefined) mark.deletedAt = raw.deletedAt;
+    marks.push(mark);
+  }
+  return marks;
+}
+
 function normalizeProgressList(value: unknown): ReadingProgress[] {
   if (!Array.isArray(value)) return [];
   const byArticle = new Map<string, ReadingProgress>();
@@ -265,6 +292,7 @@ function readCanonical(): StudyRecords | null {
       practiceSessions: normalizePracticeList(parsed.practiceSessions),
       readingProgress: normalizeProgressList(parsed.readingProgress ?? []),
       vocabulary: normalizeVocabularyList(parsed.vocabulary),
+      articleMarks: normalizeArticleMarkList(parsed.articleMarks),
     };
   } catch {
     return null;
@@ -281,6 +309,7 @@ function readLegacy(): StudyRecords {
     ),
     readingProgress: [],
     vocabulary: [],
+    articleMarks: [],
   };
 }
 
@@ -299,6 +328,7 @@ export function writeStudyRecords(records: StudyRecords): void {
     practiceSessions: records.practiceSessions,
     readingProgress: records.readingProgress,
     vocabulary: records.vocabulary ?? [],
+    articleMarks: records.articleMarks ?? [],
   });
 }
 

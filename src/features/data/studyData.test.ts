@@ -11,7 +11,7 @@ import {
   saveReadingSession,
   writeStudyRecords,
 } from './studyData';
-import type { VocabularyEntry } from '../../types/progress';
+import type { ArticleWordMark, VocabularyEntry } from '../../types/progress';
 import { readStudyData } from './backup';
 import type { StudyData } from './backup';
 
@@ -295,6 +295,59 @@ describe('study data storage', () => {
 
     expect(readStudyData().vocabulary).toEqual([]);
     expect(readStudyRecords().vocabulary).toEqual([]);
+  });
+
+  it('reads an empty article mark list from documents written before marks existed', () => {
+    localStorage.setItem(
+      STUDY_KEY,
+      JSON.stringify({
+        readingSessions: [],
+        practiceSessions: [],
+        readingProgress: [],
+      }),
+    );
+
+    expect(readStudyRecords().articleMarks).toEqual([]);
+    expect(readStudyData().articleMarks).toEqual([]);
+  });
+
+  it('keeps article marks intact when other learning records are written', () => {
+    const mark: ArticleWordMark = {
+      id: 'mark-a',
+      articleId: 'a',
+      term: 'mot',
+      updatedAt: T1,
+    };
+    writeStudyRecords({
+      readingSessions: [],
+      practiceSessions: [],
+      readingProgress: [],
+      articleMarks: [mark],
+    });
+
+    saveReadingSession({
+      id: 'reading-a',
+      articleId: 'a',
+      startedAt: T2,
+      durationMs: 1_000,
+    });
+
+    expect(readStudyRecords().articleMarks).toEqual([mark]);
+    expect(
+      JSON.parse(localStorage.getItem(STUDY_KEY) ?? '{}').articleMarks,
+    ).toEqual([mark]);
+  });
+
+  it('writes an empty article mark list for callers that omit it', () => {
+    writeStudyRecords({
+      readingSessions: [],
+      practiceSessions: [],
+      readingProgress: [],
+    });
+
+    expect(
+      JSON.parse(localStorage.getItem(STUDY_KEY) ?? '{}').articleMarks,
+    ).toEqual([]);
   });
 
   it('keeps vocabulary intact when other learning records are written', () => {

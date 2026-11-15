@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, act } from '@testing-library/react';
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  act,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import ReadPage from './ReadPage';
@@ -12,6 +19,10 @@ import {
   saveReadingProgress,
 } from '../features/data/studyData';
 import { listVocabulary } from '../features/vocabulary/vocabulary';
+import {
+  listArticleMarks,
+  setArticleMark,
+} from '../features/marks/articleMarks';
 import type { Article, ArticleImage } from '../types/content';
 
 vi.mock('../lib/content', () => ({
@@ -87,6 +98,29 @@ const articleImage: ArticleImage = {
   sha256: '0123456789abcdef'.repeat(4),
   fileRevisionId: '123456789',
   retrievedAt: '2026-11-14',
+};
+
+const highlightArticle: Article = {
+  ...article,
+  paragraphs: [
+    {
+      sentences: [
+        'Paris attire les visiteurs. La tour Eiffel est situé à Paris.',
+      ],
+    },
+  ],
+  translations: {
+    zh: {
+      ...article.translations.zh,
+      paragraphs: [
+        {
+          sentences: [
+            '巴黎吸引游客。埃菲尔铁塔位于巴黎。',
+          ],
+        },
+      ],
+    },
+  },
 };
 
 function renderRead(path = '/read/2026-11-09-tour-eiffel') {
@@ -769,5 +803,222 @@ describe('ReadPage', () => {
     unmount();
 
     expect(readStudyData().readingSessions).toHaveLength(0);
+  });
+
+  it('marks a selection, highlights every occurrence and keeps it out of the notebook', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue(highlightArticle);
+    mockSelection('Paris');
+
+    const { container } = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(screen.getByTestId('article-body'));
+
+    const mark = await screen.findByTestId('mark-word');
+    expect(mark).toHaveTextContent('Marquer');
+    await userEvent.click(mark);
+
+    const highlights = container.querySelectorAll('.mark-highlight');
+    expect(highlights).toHaveLength(2);
+    highlights.forEach((highlight) => {
+      expect(highlight).toHaveTextContent('Paris');
+    });
+    expect(screen.getByTestId('article-body')).toHaveTextContent(
+      'Paris attire les visiteurs. La tour Eiffel est situé à Paris.',
+    );
+
+    const markedRegion = screen.getByRole('region', {
+      name: 'Mots marqués',
+    });
+    expect(within(markedRegion).getByText('Paris')).toBeInTheDocument();
+    expect(
+      within(markedRegion).getByRole('button', {
+        name: 'Retirer la marque de « Paris »',
+      }),
+    ).toBeInTheDocument();
+    expect(listArticleMarks(article.id)).toEqual(['Paris']);
+    expect(listVocabulary()).toHaveLength(0);
+  });
+
+  it('offers to remove the mark when the selection is already marked', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue(highlightArticle);
+    mockSelection('Paris');
+
+    const { container } = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(screen.getByTestId('article-body'));
+    await userEvent.click(await screen.findByTestId('mark-word'));
+
+    mockSelection('Paris');
+    await userEvent.click(screen.getByTestId('article-body'));
+
+    const unmark = await screen.findByTestId('unmark-word');
+    expect(unmark).toHaveTextContent('Retirer la marque');
+    await userEvent.click(unmark);
+
+    expect(container.querySelector('.mark-highlight')).toBeNull();
+    expect(
+      screen.queryByRole('region', { name: 'Mots marqués' }),
+    ).not.toBeInTheDocument();
+    expect(listArticleMarks(article.id)).toEqual([]);
+  });
+
+  it('keeps marks after reopening the article and removes them from the chip', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue(highlightArticle);
+    mockSelection('Paris');
+
+    const first = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(screen.getByTestId('article-body'));
+    await userEvent.click(await screen.findByTestId('mark-word'));
+    first.unmount();
+
+    const reopened = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+    expect(reopened.container.querySelectorAll('.mark-highlight')).toHaveLength(
+      2,
+    );
+
+    const markedRegion = screen.getByRole('region', {
+      name: 'Mots marqués',
+    });
+    await userEvent.click(
+      within(markedRegion).getByRole('button', {
+        name: 'Retirer la marque de « Paris »',
+      }),
+    );
+
+    expect(reopened.container.querySelector('.mark-highlight')).toBeNull();
+    expect(listArticleMarks(article.id)).toEqual([]);
+  });
+
+  it('keeps the selection and reports a mark save failure', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue(highlightArticle);
+    mockSelection('Paris');
+
+    const { container } = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(screen.getByTestId('article-body'));
+
+    const originalSetItem = Storage.prototype.setItem;
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(function (
+        this: Storage,
+        key: string,
+        value: string,
+      ) {
+        if (key === 'frp:study-data') {
+          throw new Error('quota exceeded');
+        }
+        originalSetItem.call(this, key, value);
+      });
+
+    await userEvent.click(await screen.findByTestId('mark-word'));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Impossible d'enregistrer la marque. Réessayez.",
+    );
+    expect(screen.getByTestId('mark-word')).toBeInTheDocument();
+    expect(container.querySelector('.mark-highlight')).toBeNull();
+    expect(listArticleMarks(article.id)).toEqual([]);
+
+    setItem.mockRestore();
+    await userEvent.click(screen.getByTestId('mark-word'));
+
+    expect(container.querySelectorAll('.mark-highlight')).toHaveLength(2);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('localizes the shared mark actions into Chinese', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue(highlightArticle);
+    await act(async () => {
+      await i18n.changeLanguage('zh');
+    });
+    mockSelection('Paris');
+
+    renderRead();
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(screen.getByTestId('article-body'));
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: '标记' }),
+    );
+
+    mockSelection('Paris');
+    await userEvent.click(screen.getByTestId('article-body'));
+
+    expect(
+      await screen.findByRole('button', { name: '取消标记' }),
+    ).toBeInTheDocument();
+    const markedRegion = screen.getByRole('region', {
+      name: '已标记词语',
+    });
+    expect(
+      within(markedRegion).getByRole('button', {
+        name: '取消标记“Paris”',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('ignores selections inside the Chinese translation layer', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue(highlightArticle);
+
+    renderRead();
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Traduction chinoise' }),
+    );
+
+    mockSelection('巴黎', () => document.querySelector('.sentence-zh'));
+    await userEvent.click(screen.getByTestId('article-body'));
+
+    expect(screen.queryByTestId('mark-word')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('unmark-word')).not.toBeInTheDocument();
+  });
+
+  it('lets a selection cross marked and glossary spans without moving the page', async () => {
+    vi.mocked(resolveArticleById).mockResolvedValue(highlightArticle);
+    Object.defineProperty(window, 'scrollY', {
+      value: 640,
+      writable: true,
+      configurable: true,
+    });
+
+    const { container } = renderRead();
+    await screen.findByRole('heading', { name: article.title });
+    act(() => {
+      setArticleMark(article.id, 'Paris', true);
+    });
+
+    const sentence = container.querySelector('.sentence-fr');
+    const firstMark = sentence?.querySelector('.mark-highlight');
+    const followingSpan = firstMark?.parentElement?.nextElementSibling;
+    expect(firstMark?.firstChild).not.toBeNull();
+    expect(followingSpan?.firstChild).not.toBeNull();
+
+    const range = document.createRange();
+    range.setStart(firstMark!.firstChild!, 0);
+    range.setEnd(followingSpan!.firstChild!, 7);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    act(() => {
+      screen
+        .getByTestId('article-body')
+        .dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+
+    const mark = await screen.findByTestId('mark-word');
+    expect(mark).toHaveTextContent('Marquer');
+    await userEvent.click(mark);
+
+    expect(window.scrollY).toBe(640);
+    expect(screen.getByTestId('article-body')).toHaveTextContent(
+      'Paris attire les visiteurs. La tour Eiffel est situé à Paris.',
+    );
+    expect(listArticleMarks(article.id)).toEqual(
+      expect.arrayContaining(['Paris', 'Paris attire']),
+    );
   });
 });

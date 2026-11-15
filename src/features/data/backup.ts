@@ -8,6 +8,7 @@ import {
 } from '../../lib/settings';
 import { readRaw, removeRaw, writeJSONStrict, writeRaw } from '../../lib/storage';
 import type {
+  ArticleWordMark,
   ReadingProgress,
   Settings,
   VocabularyEntry,
@@ -16,6 +17,10 @@ import {
   mergeVocabularyLists,
   normalizeVocabularyEntry,
 } from '../vocabulary/vocabulary';
+import {
+  mergeArticleMarks,
+  normalizeArticleWordMark,
+} from '../marks/articleMarks';
 import {
   PREVIOUS_BACKUP_KEY,
   STUDY_DATA_KEY,
@@ -35,7 +40,7 @@ import {
 } from './validation';
 
 export const STUDY_BACKUP_FORMAT = 'frp-study-backup';
-export const STUDY_BACKUP_VERSION = 2;
+export const STUDY_BACKUP_VERSION = 3;
 export const MAX_BACKUP_BYTES = 10 * 1024 * 1024;
 
 export interface StudyData {
@@ -44,13 +49,15 @@ export interface StudyData {
   readingProgress: ReadingProgress[];
   /** Optional so older fixtures and callers still type-check; read defaults to []. */
   vocabulary?: VocabularyEntry[];
+  /** Optional so older backups and fixtures still type-check; read defaults to []. */
+  articleMarks?: ArticleWordMark[];
   settings: Settings;
 }
 
 export interface StudyBackup {
   format: typeof STUDY_BACKUP_FORMAT;
-  /** v2 adds vocabulary; v1 files are still accepted on import. */
-  version: 1 | 2;
+  /** v3 adds article marks; v1 and v2 files are still accepted on import. */
+  version: 1 | 2 | 3;
   exportedAt: string;
   data: StudyData;
 }
@@ -241,11 +248,26 @@ function parseData(value: unknown): StudyData {
     }
   }
 
+  const articleMarks: ArticleWordMark[] = [];
+  if (value.articleMarks !== undefined) {
+    if (!Array.isArray(value.articleMarks)) {
+      throw new Error('Invalid backup article marks.');
+    }
+    for (const raw of value.articleMarks) {
+      const mark = normalizeArticleWordMark(raw);
+      if (!mark) {
+        throw new Error('Invalid backup article mark.');
+      }
+      articleMarks.push(mark);
+    }
+  }
+
   return {
     readingSessions: [...readingById.values()],
     practiceSessions: [...practiceById.values()],
     readingProgress: [...progressByArticle.values()],
     vocabulary: mergeVocabularyLists(vocabulary),
+    articleMarks: mergeArticleMarks(articleMarks),
     settings: parseSettings(value.settings),
   };
 }
@@ -291,7 +313,11 @@ export function parseBackup(input: string | unknown): StudyBackup {
   if (value.format !== STUDY_BACKUP_FORMAT) {
     throw new Error('Unsupported backup format.');
   }
-  if (value.version !== 1 && value.version !== 2) {
+  if (
+    value.version !== 1 &&
+    value.version !== 2 &&
+    value.version !== 3
+  ) {
     throw new Error('Unsupported backup version.');
   }
   if (!isIsoDateString(value.exportedAt)) {
@@ -359,6 +385,10 @@ function mergeData(local: StudyData, remote: StudyData): StudyData {
     vocabulary: mergeVocabularyLists(
       local.vocabulary ?? [],
       remote.vocabulary ?? [],
+    ),
+    articleMarks: mergeArticleMarks(
+      local.articleMarks ?? [],
+      remote.articleMarks ?? [],
     ),
     settings: { ...local.settings },
   };

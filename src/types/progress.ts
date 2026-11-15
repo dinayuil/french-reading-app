@@ -65,3 +65,13 @@ export interface VocabularyEntry {
   /** Tombstone time; a deleted entry stays for merge conflict resolution. */
   deletedAt?: string;
 }
+
+export interface ArticleWordMark {
+  /** Stable id derived from the article and normalized term. */
+  id: string;
+  articleId: string;
+  term: string;
+  updatedAt: string;
+  /** Tombstone time; a removed mark stays for merge conflict resolution. */
+  deletedAt?: string;
+}

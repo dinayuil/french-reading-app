@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { resolveArticleById } from '../lib/content';
@@ -12,10 +18,12 @@ import {
   updateVocabulary,
 } from '../features/vocabulary/vocabulary';
 import { useArticleSelection } from '../features/reading/useArticleSelection';
+import { useArticleMarks } from '../features/reading/useArticleMarks';
 import ErrorState from '../components/ErrorState';
 import GlossaryText from '../components/GlossaryText';
 import LevelBadge from '../components/LevelBadge';
 import LicenseBlock from '../components/LicenseBlock';
+import MarkedTerms from '../components/MarkedTerms';
 import SourceAttribution from '../components/SourceAttribution';
 import ArticleImage from '../components/ArticleImage';
 import { usePracticeSession } from '../features/practice/usePracticeSession';
@@ -125,7 +133,6 @@ function PracticeRunner({
     optionOrders,
     initialElapsedMs,
     answerQuestion,
-    markWord,
     checkpointElapsed,
     submit,
   } = usePracticeSession(article);
@@ -151,6 +158,12 @@ function PracticeRunner({
   const [panelNotice, setPanelNotice] = useState<PanelNotice>(null);
   const articleBodyRef = useRef<HTMLDivElement>(null);
   const { selection, clearSelection } = useArticleSelection(articleBodyRef);
+  const {
+    terms: markedTerms,
+    isMarked,
+    mark,
+    unmark,
+  } = useArticleMarks(article.id, markedWords);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const lastTermButtonRef = useRef<HTMLButtonElement | null>(null);
   const translationRequestRef = useRef(0);
@@ -178,6 +191,7 @@ function PracticeRunner({
   useEffect(() => {
     setAddedTerm(null);
     setAddError(false);
+    setMarkError(false);
   }, [selection?.text]);
 
   useEffect(() => {
@@ -217,22 +231,31 @@ function PracticeRunner({
     saveSettings({ practiceTimerVisible: next });
   };
 
-  const markSelection = (word: string): boolean => {
+  const selectionIsMarked = selection ? isMarked(selection.text) : false;
+
+  const handleToggleMark = () => {
+    if (!selection) return;
     setMarkError(false);
     try {
-      markWord(word);
+      if (selectionIsMarked) {
+        unmark(selection.text);
+      } else {
+        mark(selection.text);
+      }
     } catch {
       setMarkError(true);
-      return false;
+      return;
     }
-    return true;
+    clearArticleSelection();
   };
 
-  const handleMark = () => {
-    if (!selection) return;
-    if (!markSelection(selection.text)) return;
-
-    clearArticleSelection();
+  const handleRemoveMark = (term: string) => {
+    setMarkError(false);
+    try {
+      unmark(term);
+    } catch {
+      setMarkError(true);
+    }
   };
 
   const handleSubmit = () => {
@@ -542,6 +565,7 @@ function PracticeRunner({
                               explanation: translation.glossary[term],
                             })
                           }
+                          markedTerms={markedTerms}
                         />
                       </span>
                       {showZh && (
@@ -563,128 +587,121 @@ function PracticeRunner({
                   lang="fr"
                   className="article-paragraph practice-plain-text"
                 >
-                  {paragraph.sentences.join(' ')}
+                  {paragraph.sentences.map((sentence, sentenceIndex) => (
+                    <Fragment key={sentenceIndex}>
+                      {sentenceIndex > 0 && ' '}
+                      <GlossaryText
+                        text={sentence}
+                        glossary={article.glossary}
+                        onLookup={(term) =>
+                          handleLookup(term, translation.glossary[term])
+                        }
+                        enabled={false}
+                        markedTerms={markedTerms}
+                      />
+                    </Fragment>
+                  ))}
                 </p>
               ))}
         </div>
 
-        {markedWords.length > 0 && (
-          <section
-            className="practice-marks"
-            aria-label={t('practice.markedWords')}
-          >
-            <h2 className="practice-marks__label">
-              {t('practice.markedWords')}
-            </h2>
-            <ul className="practice-marks__list">
-              {markedWords.map((word) => (
-                <li key={word} className="practice-mark">
-                  <span lang="fr">{word}</span>
-                  {submitted && (
-                    <button
-                      type="button"
-                      className={`practice-mark__add${
-                        addedMarkedWord === word
-                          ? ' practice-mark__add--done'
-                          : ''
-                      }`}
-                      onClick={() => handleAddMarked(word)}
-                      aria-label={
-                        addedMarkedWord === word
-                          ? t('practice.addedToVocabulary')
-                          : `${t('practice.addToVocabulary')} : ${word}`
-                      }
-                    >
-                      {addedMarkedWord === word ? '✓' : '+'}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-            {addedMarkedWord && (
-              <p className="practice-marks__status" role="status">
-                {t('practice.addedToVocabulary')}{' '}
-                <Link to="/mots" className="practice-marks__link">
-                  {t('practice.viewVocabulary')}
-                </Link>
-              </p>
-            )}
-            {addError && (
-              <p className="practice-save-error practice-save-error--toolbar" role="alert">
-                {t('practice.addVocabularyError')}
-              </p>
-            )}
-          </section>
-        )}
+        <MarkedTerms
+          terms={markedTerms}
+          onRemove={handleRemoveMark}
+          extraAction={
+            submitted
+              ? (word) => (
+                  <button
+                    type="button"
+                    className={`marked-terms__add${
+                      addedMarkedWord === word
+                        ? ' marked-terms__add--done'
+                        : ''
+                    }`}
+                    onClick={() => handleAddMarked(word)}
+                    aria-label={
+                      addedMarkedWord === word
+                        ? t('practice.addedToVocabulary')
+                        : `${t('practice.addToVocabulary')} : ${word}`
+                    }
+                  >
+                    {addedMarkedWord === word ? '✓' : '+'}
+                  </button>
+                )
+              : undefined
+          }
+          footer={
+            <>
+              {addedMarkedWord && (
+                <p className="marked-terms__status" role="status">
+                  {t('practice.addedToVocabulary')}{' '}
+                  <Link to="/mots" className="marked-terms__link">
+                    {t('practice.viewVocabulary')}
+                  </Link>
+                </p>
+              )}
+              {addError && (
+                <p className="marked-terms__error" role="alert">
+                  {t('practice.addVocabularyError')}
+                </p>
+              )}
+              {markError && (!selection || panel) && (
+                <p className="marked-terms__error" role="alert">
+                  {t('marks.saveError')}
+                </p>
+              )}
+            </>
+          }
+        />
 
-        {selection && !panel && !submitted && (
+        {selection && !panel && (
           <div
             className="selection-toolbar"
             role="toolbar"
-            aria-label={t('practice.markAria')}
+            aria-label={t('marks.selectionActions')}
           >
             <div className="selection-toolbar__actions">
               <button
                 type="button"
-                className="selection-toolbar__button"
-                data-testid="mark-word"
-                onClick={handleMark}
+                className="selection-toolbar__button selection-toolbar__button--mark"
+                data-testid={selectionIsMarked ? 'unmark-word' : 'mark-word'}
+                onClick={handleToggleMark}
               >
-                {t('practice.mark')}
+                {selectionIsMarked ? t('marks.unmark') : t('marks.mark')}
               </button>
+              {submitted && (
+                <button
+                  type="button"
+                  className="selection-toolbar__button selection-toolbar__button--secondary"
+                  onClick={handleTranslateSelection}
+                >
+                  {t('practice.translateSelection')}
+                </button>
+              )}
+              {submitted && (
+                <button
+                  type="button"
+                  className="selection-toolbar__button selection-toolbar__button--secondary"
+                  onClick={handleAddSelection}
+                  disabled={addedTerm === selection.text}
+                >
+                  {addedTerm === selection.text
+                    ? t('practice.added')
+                    : t('practice.addToVocabulary')}
+                </button>
+              )}
             </div>
             {markError && (
               <p className="selection-toolbar__error" role="alert">
-                {t('practice.saveErrorMark')}
+                {t('marks.saveError')}
               </p>
             )}
-          </div>
-        )}
-
-        {selection && !panel && submitted && (
-          <div
-            className="selection-toolbar"
-            role="toolbar"
-            aria-label={t('practice.markAria')}
-          >
-            <div className="selection-toolbar__actions">
-              <button
-                type="button"
-                className="selection-toolbar__button"
-                data-testid="mark-word"
-                onClick={handleMark}
-              >
-                {t('practice.mark')}
-              </button>
-              <button
-                type="button"
-                className="selection-toolbar__button selection-toolbar__button--secondary"
-                onClick={handleTranslateSelection}
-              >
-                {t('practice.translateSelection')}
-              </button>
-              <button
-                type="button"
-                className="selection-toolbar__button selection-toolbar__button--secondary"
-                onClick={handleAddSelection}
-                disabled={addedTerm === selection.text}
-              >
-                {addedTerm === selection.text
-                  ? t('practice.added')
-                  : t('practice.addToVocabulary')}
-              </button>
-            </div>
-            {markError && (
-              <p className="selection-toolbar__error" role="alert">
-                {t('practice.saveErrorMark')}
-              </p>
-            )}
-            {addError && (
+            {submitted && addError && (
               <p className="selection-toolbar__error" role="alert">
                 {t('practice.addVocabularyError')}
               </p>
             )}
-            {addedTerm === selection.text && (
+            {submitted && addedTerm === selection.text && (
               <p className="selection-toolbar__status" role="status">
                 {t('practice.addedToVocabulary')}{' '}
                 <Link

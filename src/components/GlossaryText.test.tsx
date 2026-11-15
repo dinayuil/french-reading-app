@@ -116,4 +116,96 @@ describe('GlossaryText', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.getByText('La tour Eiffel est situé à Paris.')).toBeInTheDocument();
   });
+
+  it('highlights every occurrence of a marked term without changing the text', () => {
+    const { container } = render(
+      <GlossaryText
+        text="Paris attire les visiteurs. Paris reste Paris."
+        glossary={[]}
+        onLookup={onLookup}
+        markedTerms={['Paris']}
+      />,
+    );
+
+    const highlights = container.querySelectorAll('.mark-highlight');
+    expect(highlights).toHaveLength(3);
+    highlights.forEach((highlight) => {
+      expect(highlight).toHaveTextContent('Paris');
+    });
+    expect(container).toHaveTextContent(
+      'Paris attire les visiteurs. Paris reste Paris.',
+    );
+  });
+
+  it('does not highlight a marked term inside a longer word', () => {
+    const { container } = render(
+      <GlossaryText
+        text="Une Parisienne arrive à Paris."
+        glossary={[]}
+        onLookup={onLookup}
+        markedTerms={['Paris']}
+      />,
+    );
+
+    const highlights = container.querySelectorAll('.mark-highlight');
+    expect(highlights).toHaveLength(1);
+    expect(highlights[0]).toHaveTextContent('Paris');
+    expect(highlights[0]).not.toHaveTextContent('Parisienne');
+  });
+
+  it('keeps a marked glossary term inside its button without nesting buttons', () => {
+    const { container } = render(
+      <GlossaryText
+        text="La tour Eiffel est situé à Paris."
+        glossary={glossary}
+        onLookup={onLookup}
+        markedTerms={['situé']}
+      />,
+    );
+
+    const termButton = screen.getByRole('button', { name: /situé/ });
+    expect(termButton.querySelector('.mark-highlight')).toHaveTextContent(
+      'situé',
+    );
+    expect(termButton.querySelector('button')).toBeNull();
+    expect(container.querySelectorAll('button')).toHaveLength(1);
+    expect(container).toHaveTextContent('La tour Eiffel est situé à Paris.');
+  });
+
+  it('keeps one glossary button when a mark covers only part of the term', () => {
+    const { container } = render(
+      <GlossaryText
+        text="Elle est au bord de la Seine."
+        glossary={[{ term: 'au bord de' }]}
+        onLookup={onLookup}
+        markedTerms={['bord']}
+      />,
+    );
+
+    const termButton = screen.getByRole('button', { name: 'au bord de' });
+    expect(termButton.querySelectorAll('.mark-highlight')).toHaveLength(1);
+    expect(termButton.querySelector('.mark-highlight')).toHaveTextContent(
+      'bord',
+    );
+    expect(termButton).toHaveTextContent('au bord de');
+    expect(termButton.querySelector('button')).toBeNull();
+    expect(container.querySelectorAll('button')).toHaveLength(1);
+    expect(container).toHaveTextContent('Elle est au bord de la Seine.');
+  });
+
+  it('keeps marks highlighted while glossary lookup is disabled', () => {
+    const { container } = render(
+      <GlossaryText
+        text="La tour Eiffel est situé à Paris."
+        glossary={glossary}
+        onLookup={onLookup}
+        enabled={false}
+        markedTerms={['Paris']}
+      />,
+    );
+
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(container.querySelectorAll('.mark-highlight')).toHaveLength(1);
+    expect(container).toHaveTextContent('La tour Eiffel est situé à Paris.');
+  });
 });

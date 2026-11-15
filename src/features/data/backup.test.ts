@@ -25,8 +25,14 @@ import {
   deleteVocabulary,
   listVocabulary,
 } from '../vocabulary/vocabulary';
+import {
+  createArticleMarkId,
+  listArticleMarks,
+  setArticleMark,
+} from '../marks/articleMarks';
 import type { StudyBackup, StudyData } from './backup';
 import type {
+  ArticleWordMark,
   PracticeAnswer,
   PracticeSession,
   ReadingProgress,
@@ -111,6 +117,18 @@ function makeBackup(
 ): StudyBackup {
   return {
     format: 'frp-study-backup',
+    version: 3,
+    exportedAt,
+    data,
+  };
+}
+
+function makeV2Backup(
+  data: StudyData,
+  exportedAt = T3,
+): StudyBackup {
+  return {
+    format: 'frp-study-backup',
     version: 2,
     exportedAt,
     data,
@@ -145,6 +163,18 @@ function vocabularyEntry(
   };
 }
 
+function articleMark(overrides: Partial<ArticleWordMark> = {}): ArticleWordMark {
+  const articleId = overrides.articleId ?? 'article-a';
+  const term = overrides.term ?? 'mot';
+  return {
+    id: createArticleMarkId(articleId, term),
+    articleId,
+    term,
+    updatedAt: T2,
+    ...overrides,
+  };
+}
+
 function seedSettings(settings: Settings): void {
   localStorage.setItem('frp:settings', JSON.stringify(settings));
 }
@@ -168,7 +198,7 @@ describe('study backups', () => {
 
     expect(setItem).not.toHaveBeenCalled();
     expect(backup.format).toBe('frp-study-backup');
-    expect(backup.version).toBe(2);
+    expect(backup.version).toBe(3);
     expect(new Date(backup.exportedAt).toISOString()).toBe(backup.exportedAt);
     expect(backup.data.settings).toEqual(zhSettings);
     expect(backup.data.readingSessions).toHaveLength(1);
@@ -515,7 +545,7 @@ describe('study backups', () => {
 
     localStorage.setItem(
       `frp:${PREVIOUS_BACKUP_KEY}`,
-      JSON.stringify({ ...previous, version: 3 }),
+      JSON.stringify({ ...previous, version: 4 }),
     );
     expect(hasPreviousBackup()).toBe(false);
     expect(localStorage.getItem(`frp:${PREVIOUS_BACKUP_KEY}`)).not.toBeNull();
@@ -745,7 +775,7 @@ describe('study backups', () => {
     const invalidBackups: unknown[] = [
       'not json',
       { ...valid, format: 'other-format' },
-      { ...valid, version: 3 },
+      { ...valid, version: 4 },
       { ...valid, exportedAt: 'yesterday' },
       {
         ...valid,
@@ -847,7 +877,8 @@ describe('study backups', () => {
 
     const parsed = parseBackup(v1);
 
-    expect(parsed.version).toBe(2);
+    expect(parsed.version).toBe(3);
+    expect(parsed.data.articleMarks).toEqual([]);
     expect(parsed.data.vocabulary).toEqual([]);
     expect(parsed.data.settings).toEqual({
       ...oldSettings,
@@ -870,7 +901,163 @@ describe('study backups', () => {
     expect(data.vocabulary).toEqual([]);
   });
 
-  it('round-trips vocabulary tombstones through a v2 backup', () => {
+  it('accepts a v2 backup and upgrades it to v3 with empty article marks', () => {
+    const legacyPractice = practiceSession({ markedWords: ['mot'] });
+    const v2 = makeV2Backup(
+      makeData({ practiceSessions: [legacyPractice] }),
+    );
+
+    const parsed = parseBackup(v2);
+
+    expect(parsed.version).toBe(3);
+    expect(parsed.data.articleMarks).toEqual([]);
+    expect(parsed.data.practiceSessions).toEqual([legacyPractice]);
+    expect(parsed.data.settings).toEqual(frSettings);
+  });
+
+  it('round-trips article marks and tombstones through a v3 backup', () => {
+    setArticleMark('article-a', 'mot', true);
+    setArticleMark('article-a', 'retiré', true);
+    setArticleMark('article-a', 'retiré', false);
+
+    const backup = createBackup();
+    expect(backup.version).toBe(3);
+    expect(backup.data.articleMarks).toHaveLength(2);
+    expect(
+      backup.data.articleMarks?.find((item) => item.term === 'retiré')
+        ?.deletedAt,
+    ).toEqual(expect.any(String));
+
+    const parsed = parseBackup(JSON.stringify(backup));
+    expect(parsed.data.articleMarks).toEqual(backup.data.articleMarks);
+
+    localStorage.clear();
+    applyBackup(parsed, 'replace');
+
+    expect(listArticleMarks('article-a')).toEqual(['mot']);
+    expect(readStudyRecords().articleMarks).toHaveLength(2);
+  });
+
+  it('merges article marks with latest-write and deletion tie-breaks in both directions', () => {
+    const olderLive = articleMark({ term: 'mot', updatedAt: T1 });
+    const tieLive = articleMark({ term: 'mot', updatedAt: T2 });
+    const newerDeleted = articleMark({
+      term: 'mot',
+      updatedAt: T2,
+      deletedAt: T2,
+    });
+    const newerLive = articleMark({ term: 'mot', updatedAt: T3 });
+    const localLive = makeBackup(makeData({ articleMarks: [olderLive] }));
+    const localTieLive = makeBackup(makeData({ articleMarks: [tieLive] }));
+    const localNewerLive = makeBackup(makeData({ articleMarks: [newerLive] }));
+    const remoteDeleted = makeBackup(
+      makeData({ articleMarks: [newerDeleted] }),
+    );
+
+    for (const [left, right] of [
+      [localLive, remoteDeleted],
+      [remoteDeleted, localLive],
+    ] as const) {
+      expect(mergeBackups(left, right).data.articleMarks).toEqual([
+        newerDeleted,
+      ]);
+    }
+
+    for (const [left, right] of [
+      [localTieLive, remoteDeleted],
+      [remoteDeleted, localTieLive],
+    ] as const) {
+      expect(mergeBackups(left, right).data.articleMarks).toEqual([
+        newerDeleted,
+      ]);
+    }
+
+    for (const [left, right] of [
+      [localNewerLive, remoteDeleted],
+      [remoteDeleted, localNewerLive],
+    ] as const) {
+      expect(mergeBackups(left, right).data.articleMarks).toEqual([
+        newerLive,
+      ]);
+    }
+  });
+
+  it('imports the same v2 backup idempotently without resurrecting removed marks', () => {
+    const legacyPractice = practiceSession({
+      markedWords: ['mot', 'ancien'],
+    });
+    const stale = makeV2Backup(
+      makeData({ practiceSessions: [legacyPractice] }),
+    );
+
+    setArticleMark('article-a', 'mot', false);
+    applyBackup(stale, 'merge');
+    applyBackup(stale, 'merge');
+
+    const records = readStudyRecords();
+    expect(records.articleMarks).toHaveLength(1);
+    expect(records.articleMarks?.[0]).toMatchObject({
+      articleId: 'article-a',
+      term: 'mot',
+    });
+    expect(records.articleMarks?.[0].deletedAt).toEqual(expect.any(String));
+    expect(records.practiceSessions).toHaveLength(1);
+    expect(listArticleMarks('article-a')).toEqual(['ancien']);
+
+    setArticleMark('article-a', 'mot', true);
+    expect(listArticleMarks('article-a')).toEqual(['mot', 'ancien']);
+  });
+
+  it('preserves article marks across replace and restore', () => {
+    setArticleMark('article-a', 'mot', true);
+    const replacement = makeBackup(
+      makeData({
+        readingSessions: [readingSession()],
+        articleMarks: [
+          articleMark({ articleId: 'article-b', term: 'autre', updatedAt: T3 }),
+        ],
+      }),
+    );
+
+    applyBackup(replacement, 'replace');
+    expect(listArticleMarks('article-a')).toEqual([]);
+    expect(listArticleMarks('article-b')).toEqual(['autre']);
+
+    restorePreviousBackup();
+    expect(listArticleMarks('article-a')).toEqual(['mot']);
+    expect(listArticleMarks('article-b')).toEqual([]);
+  });
+
+  it('merges marks alongside untouched learning records', () => {
+    const local = makeBackup(
+      makeData({
+        readingSessions: [readingSession()],
+        practiceSessions: [practiceSession()],
+        vocabulary: [vocabularyEntry()],
+        articleMarks: [articleMark({ term: 'mot', updatedAt: T1 })],
+      }),
+    );
+    const remote = makeBackup(
+      makeData({
+        readingSessions: [
+          readingSession({ id: 'reading-b', articleId: 'article-b' }),
+        ],
+        articleMarks: [articleMark({ term: 'autre', updatedAt: T2 })],
+      }),
+    );
+
+    const merged = mergeBackups(local, remote);
+
+    expect(merged.data.articleMarks?.map((item) => item.term)).toEqual([
+      'autre',
+      'mot',
+    ]);
+    expect(merged.data.readingSessions).toHaveLength(2);
+    expect(merged.data.practiceSessions).toEqual([practiceSession()]);
+    expect(merged.data.vocabulary).toEqual([vocabularyEntry()]);
+  });
+
+  it('round-trips vocabulary tombstones through a v3 backup', () => {
     const live = addVocabulary({
       term: 'bonjour',
       translation: '你好',
@@ -886,7 +1073,7 @@ describe('study backups', () => {
     deleteVocabulary(removed.id);
 
     const backup = createBackup();
-    expect(backup.version).toBe(2);
+    expect(backup.version).toBe(3);
     expect(backup.data.vocabulary).toHaveLength(2);
     expect(
       backup.data.vocabulary?.find((item) => item.id === removed.id)?.deletedAt,
@@ -934,6 +1121,45 @@ describe('study backups', () => {
         data: {
           ...valid.data,
           vocabulary: [{ ...vocabularyEntry(), updatedAt: '2026-13-01' }],
+        },
+      },
+      {
+        ...valid,
+        data: { ...valid.data, articleMarks: 'not-an-array' },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          articleMarks: [{ ...articleMark(), term: '' }],
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          articleMarks: [{ ...articleMark(), id: '' }],
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          articleMarks: [{ ...articleMark(), articleId: '' }],
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          articleMarks: [{ ...articleMark(), updatedAt: 'yesterday' }],
+        },
+      },
+      {
+        ...valid,
+        data: {
+          ...valid.data,
+          articleMarks: [{ ...articleMark(), deletedAt: 'yesterday' }],
         },
       },
       {
@@ -1049,7 +1275,7 @@ describe('study backups', () => {
     expect(listVocabulary()).toEqual([]);
   });
 
-  it('imports the same v2 vocabulary repeatedly without duplicates', () => {
+  it('imports the same v3 vocabulary repeatedly without duplicates', () => {
     const remote = makeBackup(
       makeData({
         vocabulary: [

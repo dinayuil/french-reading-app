@@ -12,6 +12,8 @@ import { findArticleSentenceContext } from '../lib/articleContext';
 import { useReadingProgress } from '../features/reading/useReadingProgress';
 import { useReadingSession } from '../features/reading/useReadingSession';
 import { useArticleSelection } from '../features/reading/useArticleSelection';
+import { useArticleMarks } from '../features/reading/useArticleMarks';
+import { loadPracticeDraft } from '../features/practice/practiceDraft';
 import {
   addVocabulary,
   updateVocabulary,
@@ -21,6 +23,7 @@ import ErrorState from '../components/ErrorState';
 import GlossaryText from '../components/GlossaryText';
 import LevelBadge from '../components/LevelBadge';
 import LicenseBlock from '../components/LicenseBlock';
+import MarkedTerms from '../components/MarkedTerms';
 import SourceAttribution from '../components/SourceAttribution';
 import ArticleImage from '../components/ArticleImage';
 import type { Article } from '../types/content';
@@ -106,9 +109,25 @@ function ArticleReader({ article }: { article: Article }) {
   });
   const [addedTerm, setAddedTerm] = useState<string | null>(null);
   const [addError, setAddError] = useState(false);
+  const [markError, setMarkError] = useState(false);
   const [panelNotice, setPanelNotice] = useState<PanelNotice>(null);
+  const [draftMarkedWords] = useState<string[]>(() => {
+    try {
+      // Reading only reads a compatible unsent draft; it never starts or
+      // creates a practice attempt. Explicit removals still win over this seed.
+      return loadPracticeDraft(article)?.markedWords ?? [];
+    } catch {
+      return [];
+    }
+  });
   const articleBodyRef = useRef<HTMLDivElement>(null);
   const { selection, clearSelection } = useArticleSelection(articleBodyRef);
+  const {
+    terms: markedTerms,
+    isMarked,
+    mark,
+    unmark,
+  } = useArticleMarks(article.id, draftMarkedWords);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const lastTermButtonRef = useRef<HTMLButtonElement | null>(null);
   const translationRequestRef = useRef(0);
@@ -129,6 +148,7 @@ function ArticleReader({ article }: { article: Article }) {
   useEffect(() => {
     setAddedTerm(null);
     setAddError(false);
+    setMarkError(false);
   }, [selection?.text]);
 
   useEffect(() => {
@@ -262,6 +282,33 @@ function ArticleReader({ article }: { article: Article }) {
     clearSelection();
   };
 
+  const selectionIsMarked = selection ? isMarked(selection.text) : false;
+
+  const handleToggleMark = () => {
+    if (!selection) return;
+    setMarkError(false);
+    try {
+      if (selectionIsMarked) {
+        unmark(selection.text);
+      } else {
+        mark(selection.text);
+      }
+    } catch {
+      setMarkError(true);
+      return;
+    }
+    clearArticleSelection();
+  };
+
+  const handleRemoveMark = (term: string) => {
+    setMarkError(false);
+    try {
+      unmark(term);
+    } catch {
+      setMarkError(true);
+    }
+  };
+
   const panelTerm = panel?.kind === 'glossary' ? panel.term : panel?.text;
   const panelAddLabel =
     panel?.kind === 'glossary'
@@ -348,6 +395,7 @@ function ArticleReader({ article }: { article: Article }) {
                           explanation: translation.glossary[term],
                         })
                       }
+                      markedTerms={markedTerms}
                     />
                   </span>
                   {showZh && (
@@ -361,16 +409,36 @@ function ArticleReader({ article }: { article: Article }) {
           ))}
         </div>
 
+        <MarkedTerms
+          terms={markedTerms}
+          onRemove={handleRemoveMark}
+          footer={
+            markError && (!selection || panel) ? (
+              <p className="marked-terms__error" role="alert">
+                {t('marks.saveError')}
+              </p>
+            ) : null
+          }
+        />
+
         {selection && !panel && (
           <div
             className="selection-toolbar"
             role="toolbar"
-            aria-label={t('read.selectionActions')}
+            aria-label={t('marks.selectionActions')}
           >
             <div className="selection-toolbar__actions">
               <button
                 type="button"
-                className="selection-toolbar__button"
+                className="selection-toolbar__button selection-toolbar__button--mark"
+                data-testid={selectionIsMarked ? 'unmark-word' : 'mark-word'}
+                onClick={handleToggleMark}
+              >
+                {selectionIsMarked ? t('marks.unmark') : t('marks.mark')}
+              </button>
+              <button
+                type="button"
+                className="selection-toolbar__button selection-toolbar__button--secondary"
                 onClick={handleTranslateSelection}
               >
                 {t('read.translateSelection')}
@@ -386,6 +454,11 @@ function ArticleReader({ article }: { article: Article }) {
                   : t('read.addToVocabulary')}
               </button>
             </div>
+            {markError && (
+              <p className="selection-toolbar__error" role="alert">
+                {t('marks.saveError')}
+              </p>
+            )}
             {addError && (
               <p className="selection-toolbar__error" role="alert">
                 {t('read.addVocabularyError')}
