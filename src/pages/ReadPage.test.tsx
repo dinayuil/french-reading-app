@@ -100,6 +100,20 @@ function renderRead(path = '/read/2026-11-09-tour-eiffel') {
   );
 }
 
+/**
+ * Mounts the reader and flushes the article promise plus React passive
+ * effects inside act. Reading time starts in a passive effect, so a test
+ * that advances the mocked clock must wait for that effect instead of
+ * racing the scheduler once the article heading is in the DOM.
+ */
+async function renderSettledRead() {
+  let result!: ReturnType<typeof renderRead>;
+  await act(async () => {
+    result = renderRead();
+  });
+  return result;
+}
+
 function mockSelection(
   text: string,
   getNode: () => Element | null = () =>
@@ -139,6 +153,7 @@ describe('ReadPage', () => {
 
   beforeEach(() => {
     now = 0;
+    mountDate.setTime(Date.parse('2026-11-10T00:00:00Z'));
     vi.mocked(resolveArticleById).mockReset();
     vi.mocked(resolveArticleById).mockResolvedValue(article);
     vi.mocked(lookupFrToZh).mockReset();
@@ -612,8 +627,10 @@ describe('ReadPage', () => {
   it('saves a reading session on unmount when elapsed >= 1000 using the real hook', async () => {
     const mountTime = mountDate.toISOString();
 
-    const { unmount } = renderRead();
-    await screen.findByRole('heading', { name: article.title });
+    const { unmount } = await renderSettledRead();
+    expect(
+      screen.getByRole('heading', { name: article.title }),
+    ).toBeInTheDocument();
 
     advanceTime(2_000);
     mountDate.setSeconds(mountDate.getSeconds() + 2);
@@ -634,8 +651,10 @@ describe('ReadPage', () => {
   });
 
   it('checkpoints reading time on pagehide without duplicating the session', async () => {
-    const { unmount } = renderRead();
-    await screen.findByRole('heading', { name: article.title });
+    const { unmount } = await renderSettledRead();
+    expect(
+      screen.getByRole('heading', { name: article.title }),
+    ).toBeInTheDocument();
 
     advanceTime(2_000);
     act(() => {
@@ -657,8 +676,10 @@ describe('ReadPage', () => {
   });
 
   it('checkpoints reading time when the tab is hidden', async () => {
-    renderRead();
-    await screen.findByRole('heading', { name: article.title });
+    await renderSettledRead();
+    expect(
+      screen.getByRole('heading', { name: article.title }),
+    ).toBeInTheDocument();
 
     advanceTime(1_500);
     act(() => {
@@ -727,8 +748,10 @@ describe('ReadPage', () => {
   });
 
   it('does not save a reading session when elapsed < 1000', async () => {
-    const { unmount } = renderRead();
-    await screen.findByRole('heading', { name: article.title });
+    const { unmount } = await renderSettledRead();
+    expect(
+      screen.getByRole('heading', { name: article.title }),
+    ).toBeInTheDocument();
 
     advanceTime(500);
     unmount();
