@@ -51,6 +51,7 @@ const fr = {
     allLoaded: 'Tous les articles de cette période sont affichés.',
     loadErrorTitle: 'Impossible de charger la liste',
     loadErrorMessage: 'Vérifiez votre connexion, puis réessayez.',
+    availableLevels: 'Niveaux disponibles',
     dayLoadErrorTitle: 'Impossible de charger cette journée',
     dayLoadErrorMessage:
       'Les articles déjà affichés restent disponibles. Réessayez pour charger la suite.',
@@ -60,6 +61,8 @@ const fr = {
     loadErrorTitle: "Impossible de charger l'article.",
     loadErrorMessage: 'Vérifiez votre connexion, puis réessayez.',
     missingId: "Identifiant d'article manquant",
+    versionNavigation: "Versions de cet article",
+    versions: 'Versions',
     showChinese: 'Traduction chinoise',
     practiceCta: "Commencer l'exercice",
     explanationTitle: 'Vocabulaire et traduction',

@@ -321,7 +321,10 @@ export default function HomePage({
                     <ul className="article-grid">
                       {group.entries.map((entry) => (
                         <li key={entry.id}>
-                          <ArticleCard entry={entry} />
+                          <ArticleCard
+                            entry={entry}
+                            familyVersions={entry.familyVersions}
+                          />
                         </li>
                       ))}
                     </ul>

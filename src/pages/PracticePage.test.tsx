@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import PracticePage from './PracticePage';
 import ReadPage from './ReadPage';
-import { resolveArticleById } from '../lib/content';
+import { resolveArticleById, resolveArticleFamilyById } from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
 import { i18n } from '../i18n';
 import { readStudyData } from '../features/data/backup';
@@ -22,6 +22,7 @@ import type { Article, ArticleImage } from '../types/content';
 
 vi.mock('../lib/content', () => ({
   resolveArticleById: vi.fn(),
+  resolveArticleFamilyById: vi.fn(),
   resolveImageUrl: vi.fn((path: string) => `/data/${path}`),
 }));
 
@@ -227,6 +228,8 @@ describe('PracticePage', () => {
     now = 0;
     vi.mocked(resolveArticleById).mockReset();
     vi.mocked(resolveArticleById).mockResolvedValue(article);
+    vi.mocked(resolveArticleFamilyById).mockReset();
+    vi.mocked(resolveArticleFamilyById).mockResolvedValue({ article, versions: [] });
     vi.mocked(lookupFrToZh).mockReset();
     vi.spyOn(performance, 'now').mockImplementation(() => now);
     setVisibility('visible');

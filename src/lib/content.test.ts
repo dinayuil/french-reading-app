@@ -277,6 +277,73 @@ describe('content loader', () => {
     if (cached) expect(fetchMock).not.toHaveBeenCalledWith('/data/manifest.json');
   });
 
+  it('resolves a deep-linked version with ordered sibling metadata and loads only its body', async () => {
+    const a2 = {
+      ...indexEntry,
+      id: '2026-11-09-tour-eiffel-a2',
+      level: 'A2',
+      title: 'La tour Eiffel simplement',
+      path: 'articles/2026-11-09-tour-eiffel-a2.json',
+    };
+    const b2 = {
+      ...indexEntry,
+      id: '2026-11-09-tour-eiffel-b2',
+      level: 'B2',
+      title: 'La tour Eiffel en détail',
+      path: 'articles/2026-11-09-tour-eiffel-b2.json',
+    };
+    const body = {
+      ...dayIndex,
+      articles: [{ ...indexEntry, variants: [b2, a2] }],
+    };
+    const a2Article = {
+      ...validArticle,
+      id: a2.id,
+      level: a2.level,
+      title: a2.title,
+    };
+    const fetchMock = stubFetch({
+      '/data/manifest.json': { body: { days: [dayIndex.date] } },
+      [`/data/${dayPath}`]: { body },
+      [`/data/${a2.path}`]: { body: a2Article },
+      [`/data/${articlePath}`]: { body: validArticle },
+      [`/data/${b2.path}`]: {
+        body: { ...validArticle, id: b2.id, level: b2.level, title: b2.title },
+      },
+    });
+    const { resolveArticleFamilyById } = await loadContentModule();
+
+    await expect(
+      resolveArticleFamilyById(a2.id),
+    ).resolves.toEqual({
+      article: a2Article,
+      versions: [a2, indexEntry, b2],
+    });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/data/manifest.json',
+      `/data/${dayPath}`,
+      `/data/${a2.path}`,
+    ]);
+  });
+
+  it('resolves a legacy single-version article as a one-entry family', async () => {
+    const fetchMock = stubFetch({
+      '/data/manifest.json': { body: { days: [dayIndex.date] } },
+      [`/data/${dayPath}`]: { body: dayIndex },
+      [`/data/${articlePath}`]: { body: validArticle },
+    });
+    const { resolveArticleFamilyById } = await loadContentModule();
+
+    await expect(
+      resolveArticleFamilyById(indexEntry.id),
+    ).resolves.toEqual({ article: validArticle, versions: [indexEntry] });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/data/manifest.json',
+      `/data/${dayPath}`,
+      `/data/${articlePath}`,
+    ]);
+  });
+
   it.each([
     ['non-array', null, 'variants'],
     ['nested', [{ level: 'B2', variants: [] }], 'variants[0].variants'],

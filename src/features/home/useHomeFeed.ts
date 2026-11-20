@@ -38,7 +38,11 @@ export interface HomeFeedOptions {
 
 export interface HomeFeedGroup {
   date: string;
-  entries: ArticleIndexEntry[];
+  entries: HomeFeedEntry[];
+}
+
+export interface HomeFeedEntry extends ArticleIndexEntry {
+  familyVersions: ArticleIndexEntry[];
 }
 
 export interface HomeFeedError {
@@ -48,7 +52,7 @@ export interface HomeFeedError {
 
 interface FeedState {
   key: string;
-  loadedDays: Record<string, ArticleIndexEntry[]>;
+  loadedDays: Record<string, HomeFeedEntry[]>;
   nextIndex: number;
   visibleCount: number;
   dayError: HomeFeedError | null;
@@ -169,10 +173,18 @@ export function useHomeFeed({
         const day = await loadDay(date);
         if (runRef.current !== run) return;
 
-        const entries: ArticleIndexEntry[] = [];
+        const entries: HomeFeedEntry[] = [];
         for (const entry of day.articles) {
           const version = selectVersion(entry, level);
-          if (version) entries.push(version);
+          if (version) {
+            entries.push({
+              ...version,
+              familyVersions: [entry, ...(entry.variants ?? [])].sort(
+                (left, right) =>
+                  LEVEL_RANK[left.level] - LEVEL_RANK[right.level],
+              ),
+            });
+          }
         }
 
         setFeedState((previous) =>

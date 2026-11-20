@@ -136,6 +136,39 @@ describe('useHomeFeed', () => {
     expect(result.current.loadedDayCount).toBe(1);
   });
 
+  it.each(['all', 'A2', 'B1', 'B2'] as const)(
+    'keeps the complete ordered family on the selected %s card',
+    async (level) => {
+      vi.mocked(loadDay).mockImplementation(async (date) => ({
+        date,
+        articles: date === TODAY
+          ? [{
+              ...article('family-b1', date, 'B1'),
+              variants: [
+                article('family-b2', date, 'B2'),
+                article('family-a2', date, 'A2'),
+              ],
+            }]
+          : [],
+      }));
+
+      const { result } = renderFeed({ level });
+      await waitFor(() => expect(result.current.entryCount).toBe(1));
+
+      const selected = result.current.groups[0].entries[0] as ArticleIndexEntry & {
+        familyVersions?: ArticleIndexEntry[];
+      };
+      expect(selected.familyVersions?.map(({ level: versionLevel }) => versionLevel)).toEqual([
+        'A2',
+        'B1',
+        'B2',
+      ]);
+      expect(selected.id).toBe(
+        level === 'all' ? 'family-b2' : `family-${level.toLowerCase()}`,
+      );
+    },
+  );
+
   it('requests only the newest day in range until more is requested', async () => {
     const newest = [
       article('newest-1', '2026-11-12'),

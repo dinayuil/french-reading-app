@@ -838,37 +838,52 @@ function dateHintFromId(id: string): string | undefined {
   return isValidCalendarDate(match[1]) ? match[1] : undefined;
 }
 
-function findDayEntry(index: DayIndex, id: string): ArticleIndexEntry | undefined {
+function findDayFamily(
+  index: DayIndex,
+  id: string,
+): ArticleIndexEntry[] | undefined {
   for (const entry of index.articles) {
-    if (entry.id === id) return entry;
-    const variant = entry.variants?.find((candidate) => candidate.id === id);
-    if (variant) return variant;
-  }
-  return undefined;
-}
-
-function findCachedEntry(id: string): ArticleIndexEntry | undefined {
-  for (const index of dayCache.values()) {
-    const entry = findDayEntry(index, id);
-    if (entry) {
-      return entry;
+    const family = [entry, ...(entry.variants ?? [])];
+    if (family.some((candidate) => candidate.id === id)) {
+      return family
+        .sort(
+          (left, right) =>
+            CEFR_LEVELS.indexOf(left.level) - CEFR_LEVELS.indexOf(right.level),
+        )
+        .map((version) => {
+          const flatVersion = { ...version };
+          delete flatVersion.variants;
+          return flatVersion;
+        });
     }
   }
   return undefined;
 }
 
-async function findEntryInDay(
-  day: string,
-  id: string,
-): Promise<ArticleIndexEntry | undefined> {
-  const index = await loadDay(day);
-  return findDayEntry(index, id);
+function findCachedFamily(id: string): ArticleIndexEntry[] | undefined {
+  for (const index of dayCache.values()) {
+    const family = findDayFamily(index, id);
+    if (family) {
+      return family;
+    }
+  }
+  return undefined;
 }
 
-export async function resolveArticleById(id: string): Promise<Article> {
-  const cachedEntry = findCachedEntry(id);
-  if (cachedEntry) {
-    return loadArticle(cachedEntry.path);
+async function findFamilyInDay(
+  day: string,
+  id: string,
+): Promise<ArticleIndexEntry[] | undefined> {
+  const index = await loadDay(day);
+  return findDayFamily(index, id);
+}
+
+async function resolveArticleFamilyEntries(
+  id: string,
+): Promise<ArticleIndexEntry[]> {
+  const cachedFamily = findCachedFamily(id);
+  if (cachedFamily) {
+    return cachedFamily;
   }
 
   const manifest = await loadManifest();
@@ -876,9 +891,9 @@ export async function resolveArticleById(id: string): Promise<Article> {
   const hintedDay = hint && manifest.days.includes(hint) ? hint : undefined;
 
   if (hintedDay) {
-    const entry = await findEntryInDay(hintedDay, id);
-    if (entry) {
-      return loadArticle(entry.path);
+    const family = await findFamilyInDay(hintedDay, id);
+    if (family) {
+      return family;
     }
   }
 
@@ -886,11 +901,36 @@ export async function resolveArticleById(id: string): Promise<Article> {
     if (day === hintedDay) {
       continue;
     }
-    const entry = await findEntryInDay(day, id);
-    if (entry) {
-      return loadArticle(entry.path);
+    const family = await findFamilyInDay(day, id);
+    if (family) {
+      return family;
     }
   }
 
   throw new ContentLoadError(`Article "${id}" was not found in the manifest.`);
+}
+
+export interface ResolvedArticleFamily {
+  article: Article;
+  versions: ArticleIndexEntry[];
+}
+
+export async function resolveArticleFamilyById(
+  id: string,
+): Promise<ResolvedArticleFamily> {
+  const versions = await resolveArticleFamilyEntries(id);
+  const selected = versions.find((version) => version.id === id);
+  if (!selected) {
+    throw new ContentLoadError(`Article "${id}" was not found in the manifest.`);
+  }
+
+  return {
+    article: await loadArticle(selected.path),
+    versions,
+  };
+}
+
+export async function resolveArticleById(id: string): Promise<Article> {
+  const resolved = await resolveArticleFamilyById(id);
+  return resolved.article;
 }

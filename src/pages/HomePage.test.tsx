@@ -292,6 +292,48 @@ describe('HomePage', () => {
     expect(loadDay).not.toHaveBeenCalledWith('2026-11-20');
   });
 
+  it('shows every published level on one card and marks the filtered entry', async () => {
+    const a2 = article('family-a2', 'Version A2', TODAY, 'A2');
+    const b1 = article('family-b1', 'Version B1', TODAY, 'B1');
+    const b2 = article('family-b2', 'Version B2', TODAY, 'B2');
+    dayArticles['2026-11-12'] = [{ ...b1, variants: [b2, a2] }];
+
+    const { container } = renderHome();
+
+    expect(await screen.findByText('Version B2')).toBeInTheDocument();
+    const card = container.querySelector<HTMLElement>('.article-card');
+    expect(card).not.toBeNull();
+    if (!card) throw new Error('Expected the version family card');
+
+    const levels = within(card).getAllByTestId('level-badge');
+    expect(levels.map((badge) => badge.textContent)).toEqual(['A2', 'B1', 'B2']);
+    expect(levels[2]).toHaveAttribute('aria-current', 'true');
+    expect(within(card).getByRole('link')).toHaveAttribute(
+      'href',
+      '/read/family-b2',
+    );
+    expect(container.querySelectorAll('.article-card')).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole('button', { name: 'A2' }));
+
+    expect(await screen.findByText('Version A2')).toBeInTheDocument();
+    const filteredCard = container.querySelector<HTMLElement>('.article-card');
+    expect(filteredCard).not.toBeNull();
+    if (!filteredCard) throw new Error('Expected the filtered family card');
+    const filteredLevels = within(filteredCard).getAllByTestId('level-badge');
+    expect(filteredLevels.map((badge) => badge.textContent)).toEqual([
+      'A2',
+      'B1',
+      'B2',
+    ]);
+    expect(filteredLevels[0]).toHaveAttribute('aria-current', 'true');
+    expect(within(filteredCard).getByRole('link')).toHaveAttribute(
+      'href',
+      '/read/family-a2',
+    );
+    expect(container.querySelectorAll('.article-card')).toHaveLength(1);
+  });
+
   it('starts with one card on a phone and grows row by row near the viewport', async () => {
     setViewportWidth(375);
     dayArticles['2026-11-12'] = [

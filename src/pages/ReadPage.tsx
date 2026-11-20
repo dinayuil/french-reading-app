@@ -6,7 +6,7 @@ import {
 } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { resolveArticleById } from '../lib/content';
+import { resolveArticleFamilyById } from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
 import { findArticleSentenceContext } from '../lib/articleContext';
 import { useReadingProgress } from '../features/reading/useReadingProgress';
@@ -26,13 +26,23 @@ import LicenseBlock from '../components/LicenseBlock';
 import MarkedTerms from '../components/MarkedTerms';
 import SourceAttribution from '../components/SourceAttribution';
 import ArticleImage from '../components/ArticleImage';
-import type { Article } from '../types/content';
+import type { Article, ArticleIndexEntry } from '../types/content';
 import '../styles/read.css';
 
 type LoadState =
-  | { status: 'loading' }
-  | { status: 'error'; message: string; missingId?: boolean }
-  | { status: 'success'; article: Article };
+  | { status: 'loading'; id: string | undefined }
+  | {
+      status: 'error';
+      id: string | undefined;
+      message: string;
+      missingId?: boolean;
+    }
+  | {
+      status: 'success';
+      id: string;
+      article: Article;
+      versions: ArticleIndexEntry[];
+    };
 
 type PanelState =
   | { kind: 'glossary'; term: string; explanation: string }
@@ -52,28 +62,35 @@ type PanelNotice =
 export default function ReadPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
-  const [state, setState] = useState<LoadState>({ status: 'loading' });
+  const [state, setState] = useState<LoadState>({ status: 'loading', id });
+  const requestRef = useRef(0);
 
   const load = useCallback(async () => {
+    const requestId = ++requestRef.current;
     if (!id) {
-      setState({ status: 'error', message: '', missingId: true });
+      setState({ status: 'error', id, message: '', missingId: true });
       return;
     }
-    setState({ status: 'loading' });
+    setState({ status: 'loading', id });
     try {
-      const article = await resolveArticleById(id);
-      setState({ status: 'success', article });
+      const resolved = await resolveArticleFamilyById(id);
+      if (requestRef.current !== requestId) return;
+      setState({ status: 'success', id, ...resolved });
     } catch (error) {
+      if (requestRef.current !== requestId) return;
       const message = error instanceof Error ? error.message : '';
-      setState({ status: 'error', message });
+      setState({ status: 'error', id, message });
     }
   }, [id]);
 
   useEffect(() => {
-    load();
+    void load();
+    return () => {
+      requestRef.current += 1;
+    };
   }, [load]);
 
-  if (state.status === 'loading') {
+  if (state.id !== id || state.status === 'loading') {
     return (
       <div className="container page">
         <p className="read-page__loading" role="status">
@@ -96,10 +113,22 @@ export default function ReadPage() {
     );
   }
 
-  return <ArticleReader key={state.article.id} article={state.article} />;
+  return (
+    <ArticleReader
+      key={state.article.id}
+      article={state.article}
+      versions={state.versions}
+    />
+  );
 }
 
-function ArticleReader({ article }: { article: Article }) {
+function ArticleReader({
+  article,
+  versions,
+}: {
+  article: Article;
+  versions: ArticleIndexEntry[];
+}) {
   const { t } = useTranslation();
   const translation = article.translations.zh;
   const [showZh, setShowZh] = useState(false);
@@ -333,6 +362,32 @@ function ArticleReader({ article }: { article: Article }) {
               {t(`themes.${article.theme}`, article.theme)}
             </span>
           </div>
+          {versions.length > 1 && (
+            <nav
+              className="read-version-switch"
+              aria-label={t('read.versionNavigation')}
+            >
+              <span className="read-version-switch__label">
+                {t('read.versions')}
+              </span>
+              <div className="read-version-switch__options">
+                {versions.map((version) => {
+                  const current = version.id === article.id;
+                  return (
+                    <Link
+                      key={version.id}
+                      to={`/read/${version.id}`}
+                      className={`read-version-switch__option${current ? ' read-version-switch__option--current' : ''}`}
+                      aria-current={current ? 'page' : undefined}
+                      lang="fr"
+                    >
+                      {version.level}
+                    </Link>
+                  );
+                })}
+              </div>
+            </nav>
+          )}
           <h1 className="read-header__title" lang="fr">
             {article.title}
           </h1>

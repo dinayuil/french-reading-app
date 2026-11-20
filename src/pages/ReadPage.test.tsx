@@ -8,9 +8,12 @@ import {
   within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import ReadPage from './ReadPage';
-import { resolveArticleById } from '../lib/content';
+import {
+  resolveArticleById,
+  resolveArticleFamilyById,
+} from '../lib/content';
 import { lookupFrToZh } from '../lib/dictionary';
 import { i18n } from '../i18n';
 import { readStudyData } from '../features/data/backup';
@@ -23,10 +26,11 @@ import {
   listArticleMarks,
   setArticleMark,
 } from '../features/marks/articleMarks';
-import type { Article, ArticleImage } from '../types/content';
+import type { Article, ArticleImage, ArticleIndexEntry } from '../types/content';
 
 vi.mock('../lib/content', () => ({
   resolveArticleById: vi.fn(),
+  resolveArticleFamilyById: vi.fn(),
   resolveImageUrl: vi.fn((path: string) => `/data/${path}`),
 }));
 
@@ -149,6 +153,46 @@ function renderRead(path = '/read/2026-11-09-tour-eiffel') {
   );
 }
 
+function articleIndexEntry(value: Article): ArticleIndexEntry {
+  return {
+    id: value.id,
+    title: value.title,
+    level: value.level,
+    theme: value.theme,
+    date: value.date,
+    summary: value.summary,
+    path: `articles/${value.id}.json`,
+  };
+}
+
+function NavigateButton({ to, children }: { to: string; children: string }) {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate(to)}>
+      {children}
+    </button>
+  );
+}
+
+function renderReadWithRouteControls(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/read/:id" element={<ReadPage />} />
+      </Routes>
+      <NavigateButton to="/read/2026-11-09-tour-eiffel-b2">Open B2 route</NavigateButton>
+    </MemoryRouter>,
+  );
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 /**
  * Mounts the reader and flushes the article promise plus React passive
  * effects inside act. Reading time starts in a passive effect, so a test
@@ -205,6 +249,11 @@ describe('ReadPage', () => {
     mountDate.setTime(Date.parse('2026-11-10T00:00:00Z'));
     vi.mocked(resolveArticleById).mockReset();
     vi.mocked(resolveArticleById).mockResolvedValue(article);
+    vi.mocked(resolveArticleFamilyById).mockReset();
+    vi.mocked(resolveArticleFamilyById).mockImplementation(async (id) => ({
+      article: await resolveArticleById(id),
+      versions: [articleIndexEntry(article)],
+    }));
     vi.mocked(lookupFrToZh).mockReset();
     window.getSelection()?.removeAllRanges();
 
@@ -261,6 +310,197 @@ describe('ReadPage', () => {
     expect(
       screen.getByRole('button', { name: 'situé : 位于，坐落在' }),
     ).toBeInTheDocument();
+  });
+
+  it('opens a legacy deep link for its own level and hides a single-version switcher', async () => {
+    renderRead();
+
+    await screen.findByRole('heading', { name: article.title });
+
+    expect(resolveArticleFamilyById).toHaveBeenCalledWith(article.id);
+    expect(
+      screen.queryByRole('navigation', { name: 'Versions de cet article' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens an alternate-level deep link and marks that level as current', async () => {
+    const a2: Article = {
+      ...article,
+      id: '2026-11-09-tour-eiffel-a2',
+      title: 'La tour Eiffel en mots simples',
+      level: 'A2',
+    };
+    const b2: Article = {
+      ...article,
+      id: '2026-11-09-tour-eiffel-b2',
+      title: 'La tour Eiffel en détail',
+      level: 'B2',
+    };
+    const versions = [a2, article, b2].map(articleIndexEntry);
+    const byId = new Map([[a2.id, a2], [article.id, article], [b2.id, b2]]);
+    vi.mocked(resolveArticleFamilyById).mockImplementation(async (id) => ({
+      article: byId.get(id) ?? article,
+      versions,
+    }));
+
+    renderRead(`/read/${a2.id}`);
+
+    expect(
+      await screen.findByRole('heading', { name: a2.title }),
+    ).toBeInTheDocument();
+    const navigation = screen.getByRole('navigation', {
+      name: 'Versions de cet article',
+    });
+    expect(resolveArticleFamilyById).toHaveBeenCalledWith(a2.id);
+    expect(within(navigation).getByRole('link', { name: 'A2' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+
+    await act(async () => {
+      await i18n.changeLanguage('zh');
+    });
+    const chineseNavigation = screen.getByRole('navigation', {
+      name: '本文等级版本',
+    });
+    expect(within(chineseNavigation).getByText('版本')).toBeInTheDocument();
+    expect(
+      within(chineseNavigation).getByRole('link', { name: 'A2' }),
+    ).toHaveAttribute('aria-current', 'page');
+    await act(async () => {
+      await i18n.changeLanguage('fr');
+    });
+  });
+
+  it('switches between sibling levels and keeps the selected article practice path', async () => {
+    const a2: Article = {
+      ...article,
+      id: '2026-11-09-tour-eiffel-a2',
+      title: 'La tour Eiffel en mots simples',
+      level: 'A2',
+      summary: 'Un texte plus simple.',
+      translations: {
+        ...article.translations,
+        zh: { ...article.translations.zh, title: '简单介绍埃菲尔铁塔' },
+      },
+    };
+    const b2: Article = {
+      ...article,
+      id: '2026-11-09-tour-eiffel-b2',
+      title: 'La tour Eiffel en détail',
+      level: 'B2',
+      summary: 'Un texte plus détaillé.',
+      translations: {
+        ...article.translations,
+        zh: { ...article.translations.zh, title: '详细介绍埃菲尔铁塔' },
+      },
+    };
+    const versions = [a2, article, b2].map(articleIndexEntry);
+    const byId = new Map([[a2.id, a2], [article.id, article], [b2.id, b2]]);
+    vi.mocked(resolveArticleFamilyById).mockImplementation(async (id) => ({
+      article: byId.get(id) ?? article,
+      versions,
+    }));
+
+    renderRead();
+
+    await screen.findByRole('heading', { name: article.title });
+    const navigation = screen.getByRole('navigation', {
+      name: 'Versions de cet article',
+    });
+    expect(within(navigation).getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'A2',
+      'B1',
+      'B2',
+    ]);
+    expect(within(navigation).getByRole('link', { name: 'B1' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+
+    await userEvent.click(within(navigation).getByRole('link', { name: 'A2' }));
+    expect(
+      await screen.findByRole('heading', { name: a2.title }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Traduction chinoise' }),
+    );
+    expect(screen.getByText('简单介绍埃菲尔铁塔')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: "Commencer l'exercice" })).toHaveAttribute(
+      'href',
+      `/practice/${a2.id}`,
+    );
+
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: 'Versions de cet article' }))
+        .getByRole('link', { name: 'B2' }),
+    );
+    expect(
+      await screen.findByRole('heading', { name: b2.title }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Traduction chinoise' }),
+    ).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Traduction chinoise' }),
+    );
+    expect(screen.getByText('详细介绍埃菲尔铁塔')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: "Commencer l'exercice" })).toHaveAttribute(
+      'href',
+      `/practice/${b2.id}`,
+    );
+    expect(resolveArticleFamilyById).toHaveBeenLastCalledWith(b2.id);
+  });
+
+  it('ignores stale article loads after the route changes again', async () => {
+    const a2 = {
+      ...article,
+      id: '2026-11-09-tour-eiffel-a2',
+      title: 'La tour Eiffel en mots simples',
+      level: 'A2' as const,
+    };
+    const b2 = {
+      ...article,
+      id: '2026-11-09-tour-eiffel-b2',
+      title: 'La tour Eiffel en détail',
+      level: 'B2' as const,
+    };
+    const versions = [a2, article, b2].map(articleIndexEntry);
+    const a2Request = deferred<{ article: Article; versions: ArticleIndexEntry[] }>();
+    const b2Request = deferred<{ article: Article; versions: ArticleIndexEntry[] }>();
+    vi.mocked(resolveArticleFamilyById).mockImplementation((id) => {
+      if (id === a2.id) return a2Request.promise;
+      if (id === b2.id) return b2Request.promise;
+      return Promise.resolve({ article, versions });
+    });
+
+    renderReadWithRouteControls(`/read/${article.id}`);
+    await screen.findByRole('heading', { name: article.title });
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: 'Versions de cet article' }))
+        .getByRole('link', { name: 'A2' }),
+    );
+    await waitFor(() =>
+      expect(resolveArticleFamilyById).toHaveBeenLastCalledWith(a2.id),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Open B2 route' }));
+    await waitFor(() =>
+      expect(resolveArticleFamilyById).toHaveBeenLastCalledWith(b2.id),
+    );
+
+    await act(async () => {
+      b2Request.resolve({ article: b2, versions });
+    });
+    expect(
+      await screen.findByRole('heading', { name: b2.title }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      a2Request.resolve({ article: a2, versions });
+    });
+
+    expect(screen.getByRole('heading', { name: b2.title })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: a2.title })).not.toBeInTheDocument();
   });
 
   it('renders the attributed article image before the body', async () => {
@@ -673,7 +913,7 @@ describe('ReadPage', () => {
     expect(
       screen.getByText("Identifiant d'article manquant"),
     ).toBeInTheDocument();
-    expect(resolveArticleById).not.toHaveBeenCalled();
+    expect(resolveArticleFamilyById).not.toHaveBeenCalled();
   });
 
   it('saves a reading session on unmount when elapsed >= 1000 using the real hook', async () => {
