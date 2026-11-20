@@ -223,6 +223,76 @@ afterEach(() => {
 });
 
 describe('content loader', () => {
+  it.each(['eiffel?level=b2', 'eiffel%2Fb2'])(
+    'rejects the unsafe article ID %s in raw articles, primaries, and variants',
+    async (id) => {
+      const entry = { ...indexEntry, id, path: `articles/${id}.json` };
+      await expectDayValidationError(
+        { ...dayIndex, articles: [{ ...indexEntry, variants: [{ ...entry, level: 'B2' }] }] },
+        'articles[0].variants[0].id',
+      );
+      await expectDayValidationError(
+        { ...dayIndex, articles: [entry] },
+        'articles[0].id',
+      );
+      await expectArticleValidationError({ ...validArticle, id }, 'id');
+    },
+  );
+
+  it('rejects a primary ID repeated as a variant in another family', async () => {
+    await expectDayValidationError(
+      {
+        ...dayIndex,
+        articles: [
+          indexEntry,
+          { ...undatedEntry, variants: [{ ...indexEntry, level: 'B2' }] },
+        ],
+      },
+      'articles[1].variants[0].id',
+    );
+  });
+
+  it.each([false, true])('resolves an alternate level by its own ID with day cached=%s', async (cached) => {
+    const variant = {
+      ...indexEntry,
+      id: '2026-11-09-tour-eiffel-b2',
+      level: 'B2',
+      title: 'La tour Eiffel racontée autrement',
+      path: 'articles/2026-11-09-tour-eiffel-b2.json',
+    };
+    const body = { ...dayIndex, articles: [{ ...indexEntry, variants: [variant] }] };
+    const variantArticle = { ...validArticle, id: variant.id, level: variant.level, title: variant.title };
+    const fetchMock = stubFetch({
+      '/data/manifest.json': { body: { days: [dayIndex.date] } },
+      [`/data/${dayPath}`]: { body },
+      [`/data/${articlePath}`]: { body: validArticle },
+      [`/data/${variant.path}`]: { body: variantArticle },
+    });
+    const { loadDay, resolveArticleById } = await loadContentModule();
+
+    if (cached) await expect(loadDay(dayIndex.date)).resolves.toEqual(body);
+    await expect(resolveArticleById(variant.id)).resolves.toEqual(variantArticle);
+    await expect(resolveArticleById(indexEntry.id)).resolves.toEqual(validArticle);
+    await expect(loadDay(dayIndex.date)).resolves.toEqual(body);
+    if (cached) expect(fetchMock).not.toHaveBeenCalledWith('/data/manifest.json');
+  });
+
+  it.each([
+    ['non-array', null, 'variants'],
+    ['nested', [{ level: 'B2', variants: [] }], 'variants[0].variants'],
+    ['different day', [{ level: 'B2', date: '2026-11-10' }], 'variants[0].date'],
+    ['wrong path', [{ level: 'B2', path: articlePath }], 'variants[0].path'],
+    ['duplicate level', [{ level: 'B1' }], 'variants[0].level'],
+  ] as const)('rejects a %s variants payload', async (_name, overrides, path) => {
+    await expectDayValidationError({
+      ...dayIndex,
+      articles: [{
+        ...indexEntry,
+        variants: overrides?.map((fields) => ({ ...undatedEntry, ...fields })) ?? null,
+      }],
+    }, `articles[0].${path}`);
+  });
+
   it('loads and parses the manifest', async () => {
     const fetchMock = stubFetch({
       '/data/manifest.json': { body: { days: ['2026-11-09'] } },

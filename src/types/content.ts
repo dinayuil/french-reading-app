@@ -8,6 +8,7 @@ export interface ArticleIndexEntry {
   date: string; // YYYY-MM-DD
   summary: string;
   path: string; // 'articles/<id>.json'
+  variants?: ArticleIndexEntry[];
 }
 
 export interface Manifest {

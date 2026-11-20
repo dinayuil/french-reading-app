@@ -16,6 +16,8 @@ https://raw.githubusercontent.com/dinayuil/french-reading-content-public/main/
 
 `manifest.json` 只有日期清单；`days/<YYYY-MM-DD>.json` 是该日文章的元数据索引，文章正文仍在打开阅读页时下载。不再维护月份索引。
 
+日索引中每篇来源文章有一条主记录，可用 `variants` 数组附上同日其他等级的索引条目。每个版本有独立的文章 ID、正文路径和学习记录。旧日索引没有 `variants` 时按单版本读取，旧链接继续有效。
+
 `content-public` 只是数据仓库，不部署、不启用 Pages；只有本仓库有 Pages。
 地址由构建时的 `VITE_CONTENT_BASE_URL` 决定，见 `.env.production`。本地开发不需要这个变量：`vite.config.ts` 里的小中间件把 `/data/*` 映射到同级的 `../content-public/`。
 
@@ -26,6 +28,8 @@ https://raw.githubusercontent.com/dinayuil/french-reading-content-public/main/
 手机首页直接显示等级筛选和「Filtres / 筛选」按钮；日期范围和排序在点开后的底部面板中调整，选择立即生效，点击「Afficher les articles / 显示文章」返回列表。桌面端仍直接显示全部筛选控件。
 
 首页默认显示近 3 天（含用户本地日期的今天，不含未来），可切换近 7 天、近 30 天；默认最新在前，也可最早在前。A2/B1/B2/全部等级筛选作用于所选日期范围，某一天没有匹配等级时会继续检查后面的日期。
+
+首页在日索引中选版本，每篇来源文章最多显示一张卡片，并保留日内顺序。选 A2、B1 或 B2 时只显示该等级的版本；选「全部」时按 B2、B1、A2 的顺序选择已有的最高等级版本。卡片链接直接指向所选版本。
 
 加载按天进行：先取 manifest 的日期清单，再按当前排序逐日请求 `days/<date>.json`。首屏先显示一行卡片（手机上为一张），只有列表末尾接近视口时才补下一行或请求下一天；大屏会在列表未填满时自动补充，但列表末尾已离开视口时不会预渲染看不到的卡片。当前等级在所有已加载日期都没有匹配时，会自动继续检查后续日期，直到出现第一张卡片或日期范围用完，不需要手动点击。请求失败时保留已显示的卡片并停住，只重试失败的那一天；列表底部同时提供「Afficher plus d'articles」按钮，供不支持滚动观察的环境使用。
 

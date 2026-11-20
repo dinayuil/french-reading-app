@@ -283,20 +283,36 @@ function assertTranslation(
   }
 }
 
+function requireArticleId(record: Record<string, unknown>, path: string): string {
+  const id = requireNonEmptyString(record, 'id', path);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._~-]*$/.test(id)) {
+    invalid(path, 'expected an article ID that is a single URL path segment');
+  }
+  return id;
+}
+
 function assertArticleIndexEntry(
   value: unknown,
   path: string,
+  date: string,
 ): asserts value is ArticleIndexEntry {
   if (!isRecord(value)) {
     invalid(path, 'expected an object');
   }
 
-  const id = requireNonEmptyString(value, 'id', `${path}.id`);
+  const id = requireArticleId(value, `${path}.id`);
   requireNonEmptyString(value, 'title', `${path}.title`);
   requireCefrLevel(value, `${path}.level`);
   requireNonEmptyString(value, 'theme', `${path}.theme`);
   requireCalendarDate(value, 'date', `${path}.date`);
   requireNonEmptyString(value, 'summary', `${path}.summary`);
+
+  if (value.date !== date) {
+    invalid(
+      `${path}.date`,
+      `expected "${value.date}" to match the day index date "${date}"`,
+    );
+  }
 
   const articlePath = requireNonEmptyString(value, 'path', `${path}.path`);
   if (articlePath !== `articles/${id}.json`) {
@@ -450,7 +466,7 @@ function assertArticle(value: unknown): asserts value is Article {
     invalid('article', 'expected an object');
   }
 
-  requireNonEmptyString(value, 'id', 'id');
+  requireArticleId(value, 'id');
   requireNonEmptyString(value, 'title', 'title');
   requireNonEmptyString(value, 'theme', 'theme');
   requireNonEmptyString(value, 'date', 'date');
@@ -768,15 +784,36 @@ export async function loadDay(date: string): Promise<DayIndex> {
   if (!Array.isArray(articles)) {
     invalid('articles', 'expected an array');
   }
+  const seenIds = new Set<string>();
+  function addId(id: string, path: string) {
+    if (seenIds.has(id)) {
+      invalid(path, `duplicate article id "${id}"`);
+    }
+    seenIds.add(id);
+  }
+
   articles.forEach((entry, entryIndex) => {
     const entryPath = `articles[${entryIndex}]`;
-    assertArticleIndexEntry(entry, entryPath);
-    if (entry.date !== value.date) {
-      invalid(
-        `${entryPath}.date`,
-        `expected "${entry.date}" to match the day index date "${value.date}"`,
-      );
+    assertArticleIndexEntry(entry, entryPath, date);
+    addId(entry.id, `${entryPath}.id`);
+    if (entry.variants === undefined) return;
+    if (!Array.isArray(entry.variants)) {
+      invalid(`${entryPath}.variants`, 'expected an array');
     }
+
+    const levels = new Set([entry.level]);
+    entry.variants.forEach((variant, variantIndex) => {
+      const variantPath = `${entryPath}.variants[${variantIndex}]`;
+      assertArticleIndexEntry(variant, variantPath, date);
+      if (variant.variants !== undefined) {
+        invalid(`${variantPath}.variants`, 'nested variants are not allowed');
+      }
+      if (levels.has(variant.level)) {
+        invalid(`${variantPath}.level`, `duplicate level "${variant.level}"`);
+      }
+      addId(variant.id, `${variantPath}.id`);
+      levels.add(variant.level);
+    });
   });
 
   const result: DayIndex = {
@@ -801,9 +838,18 @@ function dateHintFromId(id: string): string | undefined {
   return isValidCalendarDate(match[1]) ? match[1] : undefined;
 }
 
+function findDayEntry(index: DayIndex, id: string): ArticleIndexEntry | undefined {
+  for (const entry of index.articles) {
+    if (entry.id === id) return entry;
+    const variant = entry.variants?.find((candidate) => candidate.id === id);
+    if (variant) return variant;
+  }
+  return undefined;
+}
+
 function findCachedEntry(id: string): ArticleIndexEntry | undefined {
   for (const index of dayCache.values()) {
-    const entry = index.articles.find((article) => article.id === id);
+    const entry = findDayEntry(index, id);
     if (entry) {
       return entry;
     }
@@ -816,7 +862,7 @@ async function findEntryInDay(
   id: string,
 ): Promise<ArticleIndexEntry | undefined> {
   const index = await loadDay(day);
-  return index.articles.find((entry) => entry.id === id);
+  return findDayEntry(index, id);
 }
 
 export async function resolveArticleById(id: string): Promise<Article> {

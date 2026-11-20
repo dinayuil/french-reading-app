@@ -10,6 +10,25 @@ import {
 
 export type LevelFilter = 'all' | CefrLevel;
 
+const LEVEL_RANK: Record<CefrLevel, number> = { A2: 0, B1: 1, B2: 2 };
+
+function selectVersion(
+  entry: ArticleIndexEntry,
+  level: LevelFilter,
+): ArticleIndexEntry | undefined {
+  if (level !== 'all') {
+    return entry.level === level
+      ? entry
+      : entry.variants?.find((variant) => variant.level === level);
+  }
+
+  let highest = entry;
+  for (const variant of entry.variants ?? []) {
+    if (LEVEL_RANK[variant.level] > LEVEL_RANK[highest.level]) highest = variant;
+  }
+  return highest;
+}
+
 export interface HomeFeedOptions {
   rangeDays: HomeRangeDays;
   level: LevelFilter;
@@ -150,13 +169,19 @@ export function useHomeFeed({
         const day = await loadDay(date);
         if (runRef.current !== run) return;
 
+        const entries: ArticleIndexEntry[] = [];
+        for (const entry of day.articles) {
+          const version = selectVersion(entry, level);
+          if (version) entries.push(version);
+        }
+
         setFeedState((previous) =>
           previous.key === key
             ? {
                 ...previous,
                 loadedDays: {
                   ...previous.loadedDays,
-                  [date]: day.articles,
+                  [date]: entries,
                 },
                 nextIndex: previous.nextIndex + 1,
               }
@@ -184,7 +209,7 @@ export function useHomeFeed({
         }
       }
     },
-    [],
+    [level],
   );
 
   useEffect(() => {
@@ -204,17 +229,11 @@ export function useHomeFeed({
     let total = 0;
 
     for (const date of scopeDays) {
-      const entries = feed.loadedDays[date];
-      if (!entries) continue;
-
-      total +=
-        level === 'all'
-          ? entries.length
-          : entries.filter((entry) => entry.level === level).length;
+      total += feed.loadedDays[date]?.length ?? 0;
     }
 
     return total;
-  }, [feed.loadedDays, level, scopeDays]);
+  }, [feed.loadedDays, scopeDays]);
 
   const groups = useMemo(() => {
     const result: HomeFeedGroup[] = [];
@@ -224,21 +243,15 @@ export function useHomeFeed({
       if (remaining <= 0) break;
 
       const entries = feed.loadedDays[date];
-      if (!entries) continue;
+      if (!entries?.length) continue;
 
-      const matching =
-        level === 'all'
-          ? entries
-          : entries.filter((entry) => entry.level === level);
-      if (matching.length === 0) continue;
-
-      const visible = matching.slice(0, remaining);
+      const visible = entries.slice(0, remaining);
       result.push({ date, entries: visible });
       remaining -= visible.length;
     }
 
     return result;
-  }, [feed.loadedDays, feed.visibleCount, level, scopeDays]);
+  }, [feed.loadedDays, feed.visibleCount, scopeDays]);
 
   const entryCount = groups.reduce(
     (total, group) => total + group.entries.length,

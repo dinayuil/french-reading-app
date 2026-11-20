@@ -101,6 +101,41 @@ describe('useHomeFeed', () => {
     }));
   });
 
+  it.each([
+    ['all', ['family-b2', 'legacy', 'other-b2']],
+    ['A2', ['family-a2', 'other-a2']],
+    ['B1', ['family-b1', 'legacy']],
+    ['B2', ['family-b2', 'other-b2']],
+  ] as const)('selects one version per source for %s and paginates those selections', async (level, expectedIds) => {
+    setViewportWidth(375);
+    vi.mocked(loadDay).mockImplementation(async (date) => ({
+      date,
+      articles: date === TODAY ? [
+        {
+          ...article('family-a2', date, 'A2'),
+          variants: [article('family-b2', date, 'B2'), article('family-b1', date, 'B1')],
+        },
+        article('legacy', date, 'B1'),
+        {
+          ...article('other-a2', date, 'A2'),
+          variants: [article('other-b2', date, 'B2')],
+        },
+      ] : [],
+    }));
+
+    const { result } = renderFeed({ level });
+    const visibleIds = () => result.current.groups.flatMap(({ entries }) => entries.map(({ id }) => id));
+
+    await waitFor(() => expect(visibleIds()).toEqual(expectedIds.slice(0, 1)));
+    for (let count = 2; count <= expectedIds.length; count += 1) {
+      expect(result.current.hasMore).toBe(true);
+      act(() => result.current.loadMore());
+      await waitFor(() => expect(visibleIds()).toEqual(expectedIds.slice(0, count)));
+    }
+    expect(result.current.entryCount).toBe(expectedIds.length);
+    expect(result.current.loadedDayCount).toBe(1);
+  });
+
   it('requests only the newest day in range until more is requested', async () => {
     const newest = [
       article('newest-1', '2026-11-12'),
