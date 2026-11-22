@@ -19,7 +19,7 @@ https://raw.githubusercontent.com/dinayuil/french-reading-content-public/main/
 日索引中每篇来源文章有一条主记录，可用 `variants` 数组附上同日其他等级的索引条目。每个版本有独立的文章 ID、正文路径和学习记录。旧日索引没有 `variants` 时按单版本读取，旧链接继续有效。
 
 `content-public` 只是数据仓库，不部署、不启用 Pages；只有本仓库有 Pages。
-地址由构建时的 `VITE_CONTENT_BASE_URL` 决定，见 `.env.production`。本地开发不需要这个变量：`vite.config.ts` 里的小中间件把 `/data/*` 映射到同级的 `../content-public/`。
+地址由构建时的 `VITE_CONTENT_BASE_URL` 决定，见 `.env.production`。本地开发不需要这个变量：`vite.config.ts` 里的小中间件把 `/data/*` 映射到同级的 `../content-public/`。文章数据留在内容仓库，`public/` 用于应用静态资源。
 
 ## 首页日期筛选与加载
 
@@ -71,6 +71,8 @@ cd android
 ```
 
 测试安装包：`android/app/build/outputs/apk/debug/app-debug.apk`；application ID 为 `cc.yosorano.frenchreading`。此命令生成可侧载的 debug APK，正式分发签名另行配置，签名密钥和 `local.properties` 不进入仓库。Android 资源构建使用根路径 `/` 和 `.env.production` 中的公开内容地址；网页 Pages 构建仍由其 workflow 指定项目路径。
+
+Android 自动化验证默认使用后台无窗口模拟器，用户需要查看时再打开窗口。真机验收以实际设备上的结果为准。
 
 ## 统计与设置
 

@@ -26,9 +26,6 @@ pnpm-debug.log*
 Thumbs.db
 .openchamber/
 
-# Superpowers SDD scratch workspace
-.superpowers/
-
 # Test / tooling caches
 coverage/
 .vitest/
