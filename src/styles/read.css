@@ -300,6 +300,27 @@
   color: var(--color-muted);
 }
 
+.marked-terms__header {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.marked-terms__add-all {
+  max-width: 100%;
+  min-height: 44px;
+}
+
+.marked-terms__add-all:disabled {
+  border-color: var(--color-border);
+  color: var(--color-muted);
+  cursor: default;
+  opacity: 0.72;
+}
+
 .marked-terms__list {
   list-style: none;
   display: flex;
@@ -344,6 +365,40 @@
 
 .marked-terms__remove:hover {
   background-color: var(--color-mark-chip-hover);
+}
+
+.marked-terms__vocabulary {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-inline-start: var(--space-1);
+  padding: 0;
+  border: 1px solid var(--color-mark-underline);
+  border-radius: 50%;
+  background-color: var(--color-surface);
+  color: var(--color-mark-text);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.marked-terms__vocabulary:hover {
+  background-color: var(--color-mark-chip-hover);
+}
+
+.marked-terms__vocabulary--saved {
+  border-color: var(--color-success-border);
+  background-color: var(--color-success-light);
+  color: var(--color-success-text);
+}
+
+.marked-terms__vocabulary--saved:hover {
+  border-color: var(--color-success-text);
+  background-color: var(--color-success-light);
 }
 
 .marked-terms__status {

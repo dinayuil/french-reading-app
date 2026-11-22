@@ -563,6 +563,61 @@ describe('PracticePage', () => {
     });
   });
 
+  it('unlocks bulk saving marked terms after submit', async () => {
+    await i18n.changeLanguage('zh');
+    setArticleMark(article.id, 'Paris', true);
+    setArticleMark(article.id, 'grand monument', true);
+    renderPractice();
+    const marks = within(await screen.findByRole('region', { name: '已标记词语' }));
+    const bulkButton = { name: '全部加入单词本' };
+    expect(marks.queryByRole('button', bulkButton)).not.toBeInTheDocument();
+    expect(marks.queryByRole('button', { name: '把“Paris”加入单词本' })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '交卷' }));
+    expect(listVocabulary()).toEqual([]);
+    await userEvent.click(marks.getByRole('button', bulkButton));
+
+    expect(listVocabulary().map((entry) => entry.term).sort()).toEqual([
+      'Paris',
+      'grand monument',
+    ]);
+    expect(marks.getByRole('button', bulkButton)).toBeDisabled();
+    expect(marks.getByRole('button', { name: '从单词本移除“Paris”' })).toBeEnabled();
+    expect(marks.getByRole('button', { name: '从单词本移除“grand monument”' })).toBeEnabled();
+  });
+
+  it('keeps both saved word controls on minus and removes a word without unmarking it', async () => {
+    setArticleMark(article.id, 'Paris', true);
+    setArticleMark(article.id, 'monument', true);
+    renderPractice();
+    await userEvent.click(await screen.findByRole('button', { name: 'Valider mes réponses' }));
+    const marks = within(screen.getByRole('region', { name: 'Mots marqués' }));
+
+    await userEvent.click(marks.getByRole('button', { name: 'Ajouter au carnet : Paris' }));
+    await userEvent.click(marks.getByRole('button', { name: 'Ajouter au carnet : monument' }));
+    const removeParis = marks.getByRole('button', { name: 'Retirer du carnet : Paris' });
+    const removeMonument = marks.getByRole('button', { name: 'Retirer du carnet : monument' });
+    expect(removeParis).toHaveTextContent('−');
+    expect(removeMonument).toHaveTextContent('−');
+
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+    await userEvent.click(removeParis);
+    expect(marks.getByRole('alert')).toHaveTextContent('Impossible de supprimer ce mot.');
+    expect(removeParis).toHaveTextContent('−');
+    expect(listVocabulary()).toHaveLength(2);
+
+    setItem.mockRestore();
+    await userEvent.click(removeParis);
+    expect(marks.queryByRole('alert')).not.toBeInTheDocument();
+    expect(marks.getByRole('button', { name: 'Ajouter au carnet : Paris' })).toHaveTextContent('+');
+    expect(removeMonument).toHaveTextContent('−');
+    expect(listVocabulary().map((entry) => entry.term)).toEqual(['monument']);
+    expect(listArticleMarks(article.id).sort()).toEqual(['Paris', 'monument']);
+    expect(marks.getByRole('button', { name: 'Tout ajouter au carnet' })).toBeEnabled();
+  });
+
   it('adds a post-submit glossary term with its original source sentence', async () => {
     renderPractice();
     await screen.findByRole('heading', { name: article.title });

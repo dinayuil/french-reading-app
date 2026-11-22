@@ -27,26 +27,24 @@ describe('MarkedTerms', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('keeps extra actions and notices with the marked terms', () => {
+  it('keeps notebook actions and mark notices with the marked terms', () => {
     render(
       <MarkedTerms
         terms={['Paris']}
         onRemove={vi.fn()}
-        extraAction={(term) => (
-          <button type="button">Ajouter {term} au carnet</button>
-        )}
-        footer={<p role="status">Ajouté au carnet.</p>}
+        article={{ id: 'article-a', title: 'Article A', paragraphs: [] }}
+        footer={<p role="alert">Impossible d'enregistrer la marque.</p>}
       />,
     );
 
     const region = screen.getByRole('region', { name: 'Mots marqués' });
     expect(
       within(region).getByRole('button', {
-        name: 'Ajouter Paris au carnet',
+        name: 'Ajouter au carnet : Paris',
       }),
     ).toBeInTheDocument();
-    expect(within(region).getByRole('status')).toHaveTextContent(
-      'Ajouté au carnet.',
+    expect(within(region).getByRole('alert')).toHaveTextContent(
+      "Impossible d'enregistrer la marque.",
     );
   });
 });

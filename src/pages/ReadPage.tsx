@@ -474,6 +474,7 @@ function ArticleReader({
         <MarkedTerms
           terms={markedTerms}
           onRemove={handleRemoveMark}
+          article={article}
           footer={
             markError && (!selection || panel) ? (
               <p className="marked-terms__error" role="alert">

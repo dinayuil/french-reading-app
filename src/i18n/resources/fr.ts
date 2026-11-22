@@ -87,6 +87,11 @@ const fr = {
     markedWords: 'Mots marqués',
     selectionActions: 'Actions sur le texte sélectionné',
     removeAria: 'Retirer la marque de « {{term}} »',
+    addTermAria: 'Ajouter au carnet : {{term}}',
+    removeTermFromVocabularyAria: 'Retirer du carnet : {{term}}',
+    addAllToVocabulary: 'Tout ajouter au carnet',
+    allInVocabulary: 'Tous les mots marqués sont dans le carnet.',
+    addAllVocabularyError: "Impossible d'ajouter les mots marqués au carnet. Réessayez.",
     saveError: "Impossible d'enregistrer la marque. Réessayez.",
   },
   practice: {

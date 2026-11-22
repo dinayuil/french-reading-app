@@ -153,7 +153,6 @@ function PracticeRunner({
     kind: 'idle',
   });
   const [addedTerm, setAddedTerm] = useState<string | null>(null);
-  const [addedMarkedWord, setAddedMarkedWord] = useState<string | null>(null);
   const [addError, setAddError] = useState(false);
   const [panelNotice, setPanelNotice] = useState<PanelNotice>(null);
   const articleBodyRef = useRef<HTMLDivElement>(null);
@@ -353,21 +352,6 @@ function PracticeRunner({
       return;
     }
     setAddedTerm(selection.text);
-  };
-
-  const handleAddMarked = (word: string) => {
-    setAddError(false);
-    if (
-      !storeWord(
-        word,
-        findArticleSentenceContext(article, word),
-        undefined,
-      )
-    ) {
-      setAddError(true);
-      return;
-    }
-    setAddedMarkedWord(word);
   };
 
   const handleAddFromPanel = () => {
@@ -616,49 +600,13 @@ function PracticeRunner({
         <MarkedTerms
           terms={markedTerms}
           onRemove={handleRemoveMark}
-          extraAction={
-            submitted
-              ? (word) => (
-                  <button
-                    type="button"
-                    className={`marked-terms__add${
-                      addedMarkedWord === word
-                        ? ' marked-terms__add--done'
-                        : ''
-                    }`}
-                    onClick={() => handleAddMarked(word)}
-                    aria-label={
-                      addedMarkedWord === word
-                        ? t('practice.addedToVocabulary')
-                        : `${t('practice.addToVocabulary')} : ${word}`
-                    }
-                  >
-                    {addedMarkedWord === word ? '✓' : '+'}
-                  </button>
-                )
-              : undefined
-          }
+          article={submitted ? article : undefined}
           footer={
-            <>
-              {addedMarkedWord && (
-                <p className="marked-terms__status" role="status">
-                  {t('practice.addedToVocabulary')}{' '}
-                  <Link to="/mots" className="marked-terms__link">
-                    {t('practice.viewVocabulary')}
-                  </Link>
-                </p>
-              )}
-              {addError && (
-                <p className="marked-terms__error" role="alert">
-                  {t('practice.addVocabularyError')}
-                </p>
-              )}
-              {markError && (!selection || panel) && (
-                <p className="marked-terms__error" role="alert">
-                  {t('marks.saveError')}
-                </p>
-              )}
-            </>
+            markError && (!selection || panel) ? (
+              <p className="marked-terms__error" role="alert">
+                {t('marks.saveError')}
+              </p>
+            ) : null
           }
         />
 

@@ -88,6 +88,11 @@ const zh = {
     markedWords: '已标记词语',
     selectionActions: '选中文本操作',
     removeAria: '取消标记“{{term}}”',
+    addTermAria: '把“{{term}}”加入单词本',
+    removeTermFromVocabularyAria: '从单词本移除“{{term}}”',
+    addAllToVocabulary: '全部加入单词本',
+    allInVocabulary: '标记的词语都已加入单词本。',
+    addAllVocabularyError: '无法批量加入单词本，请重试。',
     saveError: '无法保存标记，请重试。',
   },
   practice: {

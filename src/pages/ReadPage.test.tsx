@@ -21,7 +21,7 @@ import {
   getReadingProgress,
   saveReadingProgress,
 } from '../features/data/studyData';
-import { listVocabulary } from '../features/vocabulary/vocabulary';
+import { addVocabulary, listVocabulary } from '../features/vocabulary/vocabulary';
 import {
   listArticleMarks,
   setArticleMark,
@@ -1095,6 +1095,103 @@ describe('ReadPage', () => {
     ).toBeInTheDocument();
     expect(listArticleMarks(article.id)).toEqual(['Paris']);
     expect(listVocabulary()).toHaveLength(0);
+  });
+
+  it('adds only this article’s remaining marked terms and preserves saved entries', async () => {
+    const sentence = 'L’exposition accueille le public jusqu’à dimanche.';
+    vi.mocked(resolveArticleById).mockResolvedValue({
+      ...article,
+      paragraphs: [{ sentences: [sentence] }],
+    });
+    const existing = addVocabulary({
+      term: 'jusqu’à dimanche',
+      translation: '到星期日为止',
+      articleId: article.id,
+      articleTitle: article.title,
+    });
+    setArticleMark(article.id, "jusqu'à dimanche", true);
+    setArticleMark(article.id, "l'exposition", true);
+    setArticleMark(article.id, 'le public', true);
+    setArticleMark(`${article.id}-a2`, 'dimanche', true);
+
+    const { unmount } = renderRead();
+    const marks = within(await screen.findByRole('region', { name: 'Mots marqués' }));
+    await userEvent.click(
+      marks.getByRole('button', { name: 'Retirer la marque de « le public »' }),
+    );
+    const addAll = marks.getByRole('button', { name: 'Tout ajouter au carnet' });
+    await userEvent.click(addAll);
+
+    expect(listVocabulary()).toHaveLength(2);
+    expect(listVocabulary()).toEqual(
+      expect.arrayContaining([
+        existing,
+        expect.objectContaining({
+          term: "l'exposition",
+          context: sentence,
+          articleId: article.id,
+          articleTitle: article.title,
+        }),
+      ]),
+    );
+    expect(listArticleMarks(article.id).sort()).toEqual([
+      "jusqu'à dimanche",
+      "l'exposition",
+    ]);
+    expect(lookupFrToZh).not.toHaveBeenCalled();
+    expect(addAll).toBeDisabled();
+    expect(marks.getByRole('link', { name: 'Voir le carnet' })).toHaveAttribute(
+      'href',
+      '/mots',
+    );
+
+    await userEvent.click(
+      marks.getByRole('button', { name: "Retirer du carnet : jusqu'à dimanche" }),
+    );
+    expect(listVocabulary()).toHaveLength(1);
+    expect(addAll).toBeEnabled();
+    await userEvent.click(addAll);
+    expect(listVocabulary()).toContainEqual(
+      expect.objectContaining({ id: existing.id, translation: existing.translation }),
+    );
+
+    unmount();
+    renderRead();
+    const reopened = within(await screen.findByRole('region', { name: 'Mots marqués' }));
+    expect(reopened.getByRole('button', { name: "Retirer du carnet : l'exposition" })).toBeEnabled();
+    await userEvent.click(
+      reopened.getByRole('button', { name: "Retirer la marque de « l'exposition »" }),
+    );
+    expect(listArticleMarks(article.id)).toEqual(["jusqu'à dimanche"]);
+    expect(listVocabulary()).toHaveLength(2);
+  });
+
+  it('leaves the notebook intact when bulk save fails and lets the user retry', async () => {
+    setArticleMark(article.id, 'Paris', true);
+    setArticleMark(article.id, 'tour Eiffel', true);
+    renderRead();
+    const marks = within(await screen.findByRole('region', { name: 'Mots marqués' }));
+    const addAll = marks.getByRole('button', { name: 'Tout ajouter au carnet' });
+    const originalSetItem = Storage.prototype.setItem;
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(function (this: Storage, key: string, value: string) {
+        if (key === 'frp:study-data' && JSON.parse(value).vocabulary.length > 1) {
+          throw new Error('quota exceeded');
+        }
+        originalSetItem.call(this, key, value);
+      });
+
+    await userEvent.click(addAll);
+    expect(marks.getByRole('alert')).toHaveTextContent("Impossible d'ajouter les mots marqués");
+    expect(listVocabulary()).toEqual([]);
+    expect(addAll).toBeEnabled();
+
+    setItem.mockRestore();
+    await userEvent.click(addAll);
+    expect(marks.queryByRole('alert')).not.toBeInTheDocument();
+    expect(listVocabulary()).toHaveLength(2);
+    expect(addAll).toBeDisabled();
   });
 
   it('offers to remove the mark when the selection is already marked', async () => {

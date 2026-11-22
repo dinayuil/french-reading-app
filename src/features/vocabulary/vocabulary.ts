@@ -181,55 +181,53 @@ function normalizeInput(input: AddVocabularyInput): {
   };
 }
 
-/** Live entries only, newest first. Deleted entries stay stored as tombstones. */
-export function listVocabulary(): VocabularyEntry[] {
+/** Newest first. Deleted entries are hidden unless requested for restoration. */
+export function listVocabulary(
+  { includeDeleted = false }: { includeDeleted?: boolean } = {},
+): VocabularyEntry[] {
   return readVocabulary()
-    .filter((entry) => entry.deletedAt === undefined)
+    .filter((entry) => includeDeleted || entry.deletedAt === undefined)
     .sort(compareVocabularyEntries);
 }
 
 export function addVocabulary(input: AddVocabularyInput): VocabularyEntry {
-  const normalized = normalizeInput(input);
-  const id = createVocabularyId(normalized.articleId, normalized.term);
-  const vocabulary = readVocabulary();
-  const index = vocabulary.findIndex((entry) => entry.id === id);
-  const existing = index === -1 ? undefined : vocabulary[index];
+  return addVocabularyBatch([input])[0];
+}
 
-  if (existing && existing.deletedAt === undefined) {
-    return existing;
-  }
-
+/** Adds entries together in one storage write, preserving existing live entries. */
+export function addVocabularyBatch(
+  inputs: readonly AddVocabularyInput[],
+): VocabularyEntry[] {
+  const records = readStudyRecords();
+  const byId = new Map(
+    (records.vocabulary ?? []).map((entry) => [entry.id, entry]),
+  );
   const now = new Date().toISOString();
-  const entry: VocabularyEntry = existing
-    ? {
-        id,
-        term: normalized.term,
-        translation: normalized.translation || existing.translation,
-        context: normalized.context || existing.context,
-        articleId: normalized.articleId,
-        articleTitle: normalized.articleTitle,
-        createdAt: existing.createdAt,
-        updatedAt: nextTimestamp(existing.updatedAt),
-      }
-    : {
-        id,
-        term: normalized.term,
-        translation: normalized.translation,
-        context: normalized.context,
-        articleId: normalized.articleId,
-        articleTitle: normalized.articleTitle,
-        createdAt: now,
-        updatedAt: now,
-      };
+  let changed = false;
 
-  const next = vocabulary.slice();
-  if (index === -1) {
-    next.push(entry);
-  } else {
-    next[index] = entry;
+  const entries = inputs.map((input) => {
+    const normalized = normalizeInput(input);
+    const id = createVocabularyId(normalized.articleId, normalized.term);
+    const existing = byId.get(id);
+    if (existing && existing.deletedAt === undefined) return existing;
+
+    const entry: VocabularyEntry = {
+      ...normalized,
+      id,
+      translation: normalized.translation || existing?.translation || '',
+      context: normalized.context || existing?.context || '',
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: existing ? nextTimestamp(existing.updatedAt) : now,
+    };
+    byId.set(id, entry);
+    changed = true;
+    return entry;
+  });
+
+  if (changed) {
+    writeStudyRecords({ ...records, vocabulary: [...byId.values()] });
   }
-  writeVocabulary(next);
-  return entry;
+  return entries;
 }
 
 export function updateVocabulary(
@@ -254,18 +252,21 @@ export function updateVocabulary(
 }
 
 export function deleteVocabulary(id: string): void {
-  const vocabulary = readVocabulary();
-  const index = vocabulary.findIndex((entry) => entry.id === id);
-  if (index === -1) return;
-  const existing = vocabulary[index];
-  if (existing.deletedAt !== undefined) return;
+  deleteVocabularyBatch([id]);
+}
 
-  const tombstoneAt = nextTimestamp(existing.updatedAt);
-  const next = vocabulary.slice();
-  next[index] = {
-    ...existing,
-    updatedAt: tombstoneAt,
-    deletedAt: tombstoneAt,
-  };
-  writeVocabulary(next);
+/** Removes the live entries together while retaining tombstones for sync. */
+export function deleteVocabularyBatch(ids: readonly string[]): void {
+  const records = readStudyRecords();
+  const targetIds = new Set(ids);
+  let changed = false;
+  const vocabulary = (records.vocabulary ?? []).map((entry) => {
+    if (!targetIds.has(entry.id) || entry.deletedAt !== undefined) return entry;
+
+    const tombstoneAt = nextTimestamp(entry.updatedAt);
+    changed = true;
+    return { ...entry, updatedAt: tombstoneAt, deletedAt: tombstoneAt };
+  });
+
+  if (changed) writeStudyRecords({ ...records, vocabulary });
 }
