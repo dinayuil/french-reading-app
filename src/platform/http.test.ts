@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   isNativeApp: vi.fn(),
@@ -13,7 +13,7 @@ vi.mock('@capacitor/core', () => ({
   CapacitorHttp: { request: mocks.request },
 }));
 
-import { nativeHttpRequest } from './http';
+import { nativeHttpRequest, supportsWebDav } from './http';
 
 describe('nativeHttpRequest', () => {
   beforeEach(() => {
@@ -21,10 +21,15 @@ describe('nativeHttpRequest', () => {
     mocks.request.mockReset();
   });
 
+  afterEach(() => {
+    delete window.frenchReadingDesktop;
+  });
+
   it('rejects web callers before touching native HTTP', async () => {
     mocks.isNativeApp.mockReturnValue(false);
     const originalFetch = globalThis.fetch;
 
+    expect(supportsWebDav()).toBe(false);
     await expect(
       nativeHttpRequest({
         url: 'https://example.test/progress.json',
@@ -35,6 +40,23 @@ describe('nativeHttpRequest', () => {
 
     expect(mocks.request).not.toHaveBeenCalled();
     expect(globalThis.fetch).toBe(originalFetch);
+  });
+
+  it('uses the Windows WebDAV bridge without calling Capacitor', async () => {
+    mocks.isNativeApp.mockReturnValue(false);
+    const response = { status: 200, headers: { etag: '"v1"' }, data: '{}' };
+    const webdavRequest = vi.fn().mockResolvedValue(response);
+    window.frenchReadingDesktop = { webdavRequest };
+    const options = {
+      url: 'https://example.test/french-reading-progress.json',
+      method: 'GET' as const,
+      headers: { Authorization: 'Basic abc=', Accept: 'application/json' },
+    };
+
+    expect(supportsWebDav()).toBe(true);
+    await expect(nativeHttpRequest(options)).resolves.toEqual(response);
+    expect(webdavRequest).toHaveBeenCalledExactlyOnceWith(options);
+    expect(mocks.request).not.toHaveBeenCalled();
   });
 
   it('sends an explicit GET with redirects disabled and timeouts', async () => {

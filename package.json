@@ -1,7 +1,9 @@
 {
   "name": "french-reading-app",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Lecture et exercices de compréhension en français",
+  "main": "windows/main.cjs",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +11,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "android:sync": "npm run build && cap sync android"
+    "android:sync": "npm run build && cap sync android",
+    "windows:start": "npm run build -- --base=/ && electron .",
+    "windows:build": "npm run build -- --base=/ && electron-builder --win --x64 --publish never"
   },
   "dependencies": {
     "@capacitor/android": "8.6.2",
@@ -33,9 +37,14 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0",
     "jsdom": "^31.0.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.7",
     "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "minimatch@>=7.0.0 <11.0.1": "11.0.8"
   }
 }

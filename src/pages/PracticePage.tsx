@@ -488,7 +488,7 @@ function PracticeRunner({
           {t('practice.intro', { count: total })}{' '}
           <Link
             to="/aide"
-            target="_blank"
+            target={window.frenchReadingDesktop ? undefined : '_blank'}
             rel="noopener noreferrer"
             className="practice-intro__rules"
           >

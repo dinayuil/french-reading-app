@@ -14,6 +14,18 @@ export interface NativeHttpResponse {
   data: unknown;
 }
 
+declare global {
+  interface Window {
+    frenchReadingDesktop?: {
+      webdavRequest(options: NativeHttpRequest): Promise<NativeHttpResponse>;
+    };
+  }
+}
+
+export function supportsWebDav(): boolean {
+  return Boolean(window.frenchReadingDesktop) || isNativeApp();
+}
+
 export class NativeHttpUnavailableError extends Error {
   readonly code = 'nativeOnly';
 
@@ -27,14 +39,15 @@ const CONNECT_TIMEOUT_MS = 15_000;
 const READ_TIMEOUT_MS = 30_000;
 
 /**
- * Perform an explicit GET or PUT through Capacitor's native HTTP bridge.
- * Redirects are disabled so credentials cannot be forwarded to another host,
- * and responses are returned exactly as Capacitor delivered them (string or
- * parsed JSON object). The global fetch is deliberately left untouched.
+ * Send WebDAV requests through the installed app's HTTP bridge. Both bridges
+ * disable redirects to keep credentials on the configured server.
  */
 export async function nativeHttpRequest(
   options: NativeHttpRequest,
 ): Promise<NativeHttpResponse> {
+  const desktop = window.frenchReadingDesktop;
+  if (desktop) return desktop.webdavRequest(options);
+
   if (!isNativeApp()) {
     throw new NativeHttpUnavailableError();
   }

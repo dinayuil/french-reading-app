@@ -3,7 +3,7 @@ import type { StudyBackup } from '../data/backup';
 import type { NativeHttpRequest, NativeHttpResponse } from '../../platform/http';
 
 const port = vi.hoisted(() => ({
-  isNativeApp: vi.fn(),
+  supportsWebDav: vi.fn(),
   nativeHttpRequest: vi.fn(),
   createBackup: vi.fn(),
   parseBackup: vi.fn(),
@@ -11,12 +11,9 @@ const port = vi.hoisted(() => ({
   applyBackup: vi.fn(),
 }));
 
-vi.mock('../../platform/runtime', () => ({
-  isNativeApp: port.isNativeApp,
-}));
-
 vi.mock('../../platform/http', () => ({
   nativeHttpRequest: port.nativeHttpRequest,
+  supportsWebDav: port.supportsWebDav,
 }));
 
 vi.mock('../data/backup', () => ({
@@ -48,7 +45,7 @@ describe('syncWebDav', () => {
   });
 
   it('keeps the native gate in front of the platform HTTP call', async () => {
-    port.isNativeApp.mockReturnValue(false);
+    port.supportsWebDav.mockReturnValue(false);
 
     await expect(syncWebDav(CONFIG)).rejects.toMatchObject({
       code: 'nativeOnly',
@@ -58,7 +55,7 @@ describe('syncWebDav', () => {
 
   it('wires the platform and data modules for a first sync', async () => {
     const local = backup('local');
-    port.isNativeApp.mockReturnValue(true);
+    port.supportsWebDav.mockReturnValue(true);
     port.createBackup.mockReturnValue(local);
     port.nativeHttpRequest
       .mockResolvedValueOnce(response(404))

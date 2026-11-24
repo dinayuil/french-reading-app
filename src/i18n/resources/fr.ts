@@ -273,7 +273,7 @@ const fr = {
       success: 'Synchronisé à {{time}}.',
       errors: {
         nativeOnly:
-          "La synchronisation n'est disponible que dans l'application Android.",
+          "La synchronisation est disponible dans les applications Android et Windows.",
         invalidUrl:
           "L'adresse WebDAV doit être un dossier HTTPS valide.",
         auth: "Nom d'utilisateur ou mot de passe refusé.",
@@ -366,7 +366,7 @@ const fr = {
     },
     data: {
       title: 'Données',
-      body: "Vos réglages, vos réponses et vos mots marqués sont conservés dans le stockage local de votre navigateur. La page « Statistiques » présente votre activité et l'objectif du jour ; la page « Paramètres » permet de modifier cet objectif et l'apparence, d'exporter une sauvegarde et de la réimporter sur un autre appareil. Dans l'application Android, elle permet aussi de synchroniser vos données avec votre propre dossier WebDAV ; le site web ne propose pas cette synchronisation. Effacer les données du site les supprime définitivement. Les clés utilisées commencent par « frp: ». La traduction du texte sélectionné est assurée par le service tiers MyMemory (api.mymemory.translated.net) : le passage sélectionné lui est transmis pour obtenir une traduction du français vers le chinois. Ce service public, utilisé sans clé d'API, peut être limité ou indisponible ; la traduction n'apparaît alors pas, sans bloquer la lecture. Le carnet de mots ne reçoit que les expressions ajoutées explicitement ; les mots marqués pendant un exercice n'y entrent pas automatiquement. Les licences et sources sont accessibles depuis « Paramètres », section « À propos ».",
+      body: "Vos réglages, vos réponses et vos mots marqués sont conservés sur cet appareil. La page « Statistiques » présente votre activité et l'objectif du jour ; la page « Paramètres » permet de modifier cet objectif et l'apparence, d'exporter une sauvegarde et de la réimporter sur un autre appareil. Dans les applications Android et Windows, elle permet aussi de synchroniser vos données avec votre propre dossier WebDAV. Effacer les données locales les supprime définitivement. Les clés utilisées commencent par « frp: ». La traduction du texte sélectionné est assurée par le service tiers MyMemory (api.mymemory.translated.net) : le passage sélectionné lui est transmis pour obtenir une traduction du français vers le chinois. Ce service public, utilisé sans clé d'API, peut être limité ou indisponible ; la traduction n'apparaît alors pas, sans bloquer la lecture. Le carnet de mots ne reçoit que les expressions ajoutées explicitement ; les mots marqués pendant un exercice n'y entrent pas automatiquement. Les licences et sources sont accessibles depuis « Paramètres », section « À propos ».",
       statsLink: 'Voir les statistiques',
       settingsLink: 'Ouvrir les paramètres',
       vocabularyLink: 'Ouvrir le carnet de mots',

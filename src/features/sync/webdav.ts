@@ -1,8 +1,7 @@
 import type { StudyBackup } from '../data/backup';
 import type { NativeHttpRequest, NativeHttpResponse } from '../../platform/http';
 import { applyBackup, createBackup, mergeBackups, parseBackup } from '../data/backup';
-import { nativeHttpRequest } from '../../platform/http';
-import { isNativeApp } from '../../platform/runtime';
+import { nativeHttpRequest, supportsWebDav } from '../../platform/http';
 import { readJSON, writeJSON } from '../../lib/storage';
 
 export interface WebDavConfig {
@@ -314,7 +313,7 @@ export async function syncWebDav(
   config: WebDavConfig,
 ): Promise<{ syncedAt: string }> {
   return syncWebDavWithDeps(config, {
-    isNativeApp,
+    isNativeApp: supportsWebDav,
     nativeHttpRequest,
     createBackup,
     parseBackup,

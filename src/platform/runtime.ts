@@ -1,9 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 
 /**
- * True only inside the Capacitor native shell. The web/PWA build must keep
- * native-only features hidden, so callers should not infer this from the URL
- * or display mode.
+ * Identifies the Capacitor shell for Android-specific APIs.
  */
 export function isNativeApp(): boolean {
   return Capacitor.isNativePlatform();

@@ -1,0 +1,14 @@
+appId: cc.yosorano.frenchreading
+productName: Lire en français
+directories:
+  output: dist-windows
+files:
+  - dist/**
+  - windows/**
+  - '!**/node_modules/**'
+npmRebuild: false
+win:
+  executableName: FrenchReading
+  target: nsis
+nsis:
+  artifactName: FrenchReading-Setup-${version}-${arch}.${ext}

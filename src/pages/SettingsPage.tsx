@@ -24,7 +24,7 @@ import {
   type WebDavConfig,
 } from '../features/sync/webdav';
 import { exportDataFile } from '../platform/files';
-import { isNativeApp } from '../platform/runtime';
+import { supportsWebDav } from '../platform/http';
 import {
   MAX_DAILY_GOAL,
   MIN_DAILY_GOAL,
@@ -86,7 +86,7 @@ function backupFilename(date = new Date()): string {
 export default function SettingsPage() {
   const { t, i18n } = useTranslation();
   const version = useStudyDataVersion();
-  const [native] = useState(() => isNativeApp());
+  const [webdavAvailable] = useState(supportsWebDav);
   const [settings, setSettings] = useState<Settings>(() => loadSettings());
   const [exporting, setExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<Notice | null>(null);
@@ -97,7 +97,7 @@ export default function SettingsPage() {
   const [importing, setImporting] = useState(false);
   const importRequestRef = useRef(0);
   const [webdavSettings] = useState(() =>
-    native ? loadWebDavSettings() : { url: '', username: '' },
+    webdavAvailable ? loadWebDavSettings() : { url: '', username: '' },
   );
   const [webdavUrl, setWebdavUrl] = useState(webdavSettings.url);
   const [webdavUsername, setWebdavUsername] = useState(
@@ -257,7 +257,7 @@ export default function SettingsPage() {
 
   const handleSync = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!native || syncing) return;
+    if (!webdavAvailable || syncing) return;
 
     const config: WebDavConfig = {
       url: webdavUrl.trim(),
@@ -527,7 +527,7 @@ export default function SettingsPage() {
         </section>
       </div>
 
-      {native && (
+      {webdavAvailable && (
         <section
           className="data-card data-card--sync"
           aria-labelledby="settings-sync-title"
