@@ -116,7 +116,7 @@ describe('syncWebDavWithDeps', () => {
     const harness = createHarness({ native: false });
 
     const error = await errorOf(
-      syncWebDavWithDeps({ ...CONFIG, url: 'http://insecure.test/books/' }, harness.deps),
+      syncWebDavWithDeps({ ...CONFIG, url: 'ftp://example.test/books/' }, harness.deps),
     );
 
     expect(error.code).toBe('nativeOnly');
@@ -124,7 +124,9 @@ describe('syncWebDavWithDeps', () => {
   });
 
   const invalidUrls: Array<[string, string]> = [
-    ['http://dav.example.com/books/', 'non-HTTPS'],
+    ['ftp://dav.example.com/books/', 'unsupported scheme'],
+    ['http://dav.example.com/books/?', 'empty query'],
+    ['http://dav.example.com/books/#', 'empty fragment'],
     ['https://user:secret@dav.example.com/books/', 'user info'],
     ['https://dav.example.com/books/?token=secret', 'query'],
     ['https://dav.example.com/books/#fragment', 'fragment'],
@@ -141,14 +143,14 @@ describe('syncWebDavWithDeps', () => {
     expect(harness.request).not.toHaveBeenCalled();
   });
 
-  it('creates the fixed file in an existing directory with UTF-8 Basic auth', async () => {
+  it.each(['http', 'https'])('creates the fixed file over %s with UTF-8 Basic auth', async (scheme) => {
     const local = backup('local');
     const harness = createHarness({
       createBackup: () => local,
       request: sequence(response(404), response(201)),
     });
     const config: WebDavConfig = {
-      url: 'https://dav.example.com/books/',
+      url: `${scheme}://dav.example.com/books/`,
       username: 'üser',
       password: 'pässwörd',
     };
@@ -158,12 +160,12 @@ describe('syncWebDavWithDeps', () => {
     expect(result.syncedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     const [getRequest, putRequest] = requests(harness);
     expect(getRequest).toMatchObject({
-      url: 'https://dav.example.com/books/french-reading-progress.json',
+      url: `${scheme}://dav.example.com/books/french-reading-progress.json`,
       method: 'GET',
     });
     expect(getRequest.headers.Authorization).toBe(basicAuthValue('üser:pässwörd'));
     expect(putRequest).toMatchObject({
-      url: 'https://dav.example.com/books/french-reading-progress.json',
+      url: `${scheme}://dav.example.com/books/french-reading-progress.json`,
       method: 'PUT',
     });
     expect(putRequest.headers.Authorization).toBe(basicAuthValue('üser:pässwörd'));

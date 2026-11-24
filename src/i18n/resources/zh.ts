@@ -255,7 +255,7 @@ const zh = {
     },
     sync: {
       title: 'WebDAV 同步',
-      body: '填写一个已有的 HTTPS WebDAV 文件夹，进度文件会创建在其中。',
+      body: '填写已有 WebDAV 文件夹的 HTTP 或 HTTPS 地址。使用 HTTP 时，登录凭据和学习备份会以明文传输。',
       url: 'WebDAV 文件夹地址',
       urlPlaceholder: 'https://example.com/dav/lectures',
       username: '用户名',
@@ -266,7 +266,7 @@ const zh = {
       success: '已同步：{{time}}。',
       errors: {
         nativeOnly: '同步可在 Android 和 Windows 安装版中使用。',
-        invalidUrl: '请填写有效的 HTTPS WebDAV 文件夹地址。',
+        invalidUrl: '请填写有效的 HTTP 或 HTTPS WebDAV 文件夹地址，地址中不要包含登录凭据、查询参数或片段。',
         auth: '用户名或密码不正确。',
         network: '无法连接服务器，请检查地址和网络。',
         invalidRemote: '远端进度文件无法读取，同步已停止。',

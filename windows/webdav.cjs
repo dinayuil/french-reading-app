@@ -5,7 +5,8 @@ function webDavRequest(options) {
   const target = typeof url === 'string' && URL.parse(url);
   const authorization = headers?.Authorization;
   if (
-    !target || target.protocol !== 'https:' || target.username || target.password ||
+    !target || (target.protocol !== 'http:' && target.protocol !== 'https:') ||
+    target.username || target.password ||
     target.href.includes('?') || target.href.includes('#') ||
     !target.pathname.endsWith('/french-reading-progress.json') ||
     typeof authorization !== 'string' || !/^Basic [\w+/]+={0,2}$/.test(authorization)

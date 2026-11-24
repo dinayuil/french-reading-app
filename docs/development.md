@@ -88,7 +88,7 @@ npm run windows:build  # 生成 x64 测试安装包
 
 安装包位于 `dist-windows/FrenchReading-Setup-<version>-x64.exe`。测试安装包未做代码签名。安装后可从开始菜单打开「Lire en français」。桌面端使用固定的 `frp://desktop/` 来源保存学习数据，升级时须保留该来源和应用标识。应用界面随安装包提供，文章从公开内容仓库联网加载。
 
-在「设置」中可导入网页或 Android 导出的备份，也可手动连接已有的 HTTPS WebDAV 目录。文章来源与许可链接由系统默认浏览器打开。
+在「设置」中可导入网页或 Android 导出的备份，也可通过 HTTP 或 HTTPS 连接已有的 WebDAV 目录。文章来源与许可链接由系统默认浏览器打开。
 
 ## 发布
 
@@ -106,7 +106,7 @@ npm run windows:build  # 生成 x64 测试安装包
 - 网页和安装版的学习记录保存在本机；设置页导出的版本化 JSON 可用于跨设备迁移。导入先预览，再选择合并或替换；替换前保留一份可恢复的本地备份。
 - 导出包含学习记录、阅读进度和应用设置，不包含文章正文或 WebDAV 密码。重复合并相同记录不会重复累计学习时间。
 - 网页和 Windows 下载 JSON 文件；Android 使用系统文件选择导入，通过系统分享面板导出到用户选择的目标。
-- Android 和 Windows 安装版提供手动 WebDAV 同步。填写已有的 HTTPS WebDAV 目录、用户名与密码；应用在目录内使用固定文件 `french-reading-progress.json`。服务需支持强 ETag 和条件写入以避免设备互相覆盖。
+- Android 和 Windows 安装版提供手动 WebDAV 同步。填写已有的 HTTP 或 HTTPS WebDAV 目录、用户名与密码。应用在目录内使用固定文件 `french-reading-progress.json`，服务需支持强 ETag 和条件写入以避免设备互相覆盖。HTTP 会明文传输登录凭据和备份。
 - 同步会合并学习记录，保留本机语言等设置；URL 和用户名可记住，密码仅在当前会话中使用，不进入导出文件。
 - 本阶段没有账号、付费、官方云服务或常驻后台同步。清除应用数据前请先导出或完成同步。
 

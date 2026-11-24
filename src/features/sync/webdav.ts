@@ -28,7 +28,7 @@ export type WebDavErrorCode =
 
 const ERROR_MESSAGES: Record<WebDavErrorCode, string> = {
   nativeOnly: 'WebDAV sync is only available in the native app.',
-  invalidUrl: 'The WebDAV URL must be an HTTPS directory without credentials, query or fragment.',
+  invalidUrl: 'The WebDAV URL must be an HTTP or HTTPS directory without credentials, a query or a fragment.',
   auth: 'WebDAV authentication failed.',
   network: 'The WebDAV server could not be reached.',
   invalidRemote: 'The remote WebDAV backup is not a valid study backup.',
@@ -78,11 +78,11 @@ function buildFileUrl(rawUrl: string): string {
   }
 
   if (
-    url.protocol !== 'https:' ||
+    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
     url.username !== '' ||
     url.password !== '' ||
-    url.search !== '' ||
-    url.hash !== ''
+    url.href.includes('?') ||
+    url.href.includes('#')
   ) {
     throw new WebDavError('invalidUrl');
   }

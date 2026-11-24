@@ -261,7 +261,7 @@ const fr = {
     },
     sync: {
       title: 'Synchronisation WebDAV',
-      body: 'Indiquez un dossier WebDAV HTTPS existant. Le fichier de progression y sera créé.',
+      body: 'Indiquez un dossier WebDAV HTTP ou HTTPS existant. Avec HTTP, vos identifiants et votre sauvegarde transitent sans chiffrement.',
       url: 'Adresse du dossier WebDAV',
       urlPlaceholder: 'https://exemple.fr/dav/lectures',
       username: "Nom d'utilisateur",
@@ -275,7 +275,7 @@ const fr = {
         nativeOnly:
           "La synchronisation est disponible dans les applications Android et Windows.",
         invalidUrl:
-          "L'adresse WebDAV doit être un dossier HTTPS valide.",
+          "Saisissez l'adresse HTTP ou HTTPS d'un dossier WebDAV, sans identifiants, paramètres ni fragment.",
         auth: "Nom d'utilisateur ou mot de passe refusé.",
         network:
           "Connexion au serveur impossible. Vérifiez l'adresse et le réseau.",
