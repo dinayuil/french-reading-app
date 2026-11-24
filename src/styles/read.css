@@ -228,6 +228,16 @@
   color: var(--color-text);
 }
 
+.article-paragraph + .article-paragraph::before {
+  content: '';
+  display: block;
+  width: 1.75rem;
+  height: 2px;
+  margin-bottom: var(--space-4);
+  border-radius: 1px;
+  background-color: var(--color-divider);
+}
+
 .sentence-pair {
   display: block;
   margin-bottom: var(--space-3);
