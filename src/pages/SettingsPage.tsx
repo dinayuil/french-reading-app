@@ -39,8 +39,13 @@ import {
 } from '../lib/studyDataEvents';
 import NoticeMessage, { type Notice } from '../components/NoticeMessage';
 import ThemeControl from '../components/ThemeControl';
+import type { ReleaseUpdates } from '../features/updates/useReleaseUpdates';
 import type { Settings } from '../types/progress';
 import '../styles/data.css';
+
+interface SettingsPageProps {
+  releaseUpdates?: ReleaseUpdates | null;
+}
 
 const SYNC_ERROR_CODES = [
   'nativeOnly',
@@ -83,7 +88,7 @@ function backupFilename(date = new Date()): string {
   return `lire-en-francais-study-backup-${year}-${month}-${day}.json`;
 }
 
-export default function SettingsPage() {
+export default function SettingsPage({ releaseUpdates }: SettingsPageProps) {
   const { t, i18n } = useTranslation();
   const version = useStudyDataVersion();
   const [webdavAvailable] = useState(supportsWebDav);
@@ -625,6 +630,66 @@ export default function SettingsPage() {
           <Link to="/aide">{t('settings.about.helpLink')}</Link>
           <Link to="/licences">{t('settings.about.licensesLink')}</Link>
         </p>
+
+        {releaseUpdates && (
+          <div className="settings-about__update">
+            <p className="settings-about__version">
+              {t('updates.currentVersion', {
+                version: releaseUpdates.currentVersion,
+              })}
+            </p>
+            <div className="settings-about__actions">
+              <button
+                type="button"
+                className="data-button data-button--quiet"
+                onClick={releaseUpdates.check}
+                disabled={releaseUpdates.status === 'checking'}
+                aria-busy={
+                  releaseUpdates.status === 'checking' || undefined
+                }
+              >
+                {releaseUpdates.status === 'checking'
+                  ? t('updates.checking')
+                  : t('updates.check')}
+              </button>
+              {releaseUpdates.status === 'current' && (
+                <p
+                  className="settings-about__status settings-about__status--current"
+                  role="status"
+                >
+                  {t('updates.upToDate')}
+                </p>
+              )}
+              {releaseUpdates.status === 'error' && (
+                <p
+                  className="settings-about__status settings-about__status--error"
+                  role="alert"
+                >
+                  {t('updates.error')}
+                </p>
+              )}
+              {releaseUpdates.release && (
+                <p
+                  className="settings-about__status settings-about__status--available"
+                  role="status"
+                >
+                  {t('updates.available', {
+                    version: releaseUpdates.release.version,
+                  })}{' '}
+                  <a
+                    href={releaseUpdates.release.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {t('updates.availableLink', {
+                      version: releaseUpdates.release.version,
+                    })}
+                  </a>
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -94,6 +94,10 @@ npm run windows:build  # 生成 x64 测试安装包
 
 同一次发布使用一个版本标签和一个 [GitHub Release](https://github.com/dinayuil/french-reading-app/releases)。Windows 安装包和 Android APK 从同一个标签构建并上传到同一发布页，发布说明列出网页版入口、两种安装包及测试或签名状态。网页版由 `main` 的 Pages 工作流部署，对应线上入口为 <https://blog.yosorano.cc/french-reading-app/>。
 
+发布前更新 `package.json` 和 `package-lock.json` 的版本，并递增 Android 的 `versionCode`。界面显示的版本、Android 的 `versionName` 和 Windows 安装包版本均取自 `package.json`。版本使用三段数字（如 `0.1.1`），发布标签使用 `v<version>`，上传 `FrenchReading-Android-v<version>.apk` 和 `FrenchReading-Setup-<version>-x64.exe`。
+
+安装版在启动时以及「设置 → 关于」的手动检查时读取公开 Release 列表。正式版和 GitHub 标记的预发布版均可被发现。客户端只提示版本号更高且已上传对应平台安装包的版本，用户可到该版本的发布页下载。
+
 ## 统计与设置
 
 “Statistiques / 统计”（`/stats`）集中展示今日目标进度、学习记录、趋势和分享；原 `/data` 链接自动跳转。“Paramètres / 设置”（`/settings`）提供学习目标调整、外观、备份导入导出及恢复、原生同步；“关于”中提供帮助与许可入口。

@@ -379,6 +379,17 @@ const zh = {
     openHelp: '打开帮助',
     dismiss: '关闭',
   },
+  updates: {
+    noticeLabel: '新版本可用',
+    currentVersion: '当前版本：{{version}}',
+    check: '检查更新',
+    checking: '正在检查……',
+    upToDate: '当前已是最新版本。',
+    available: '新版本 {{version}} 已发布。',
+    availableLink: '查看新版本 {{version}}',
+    dismiss: '关闭',
+    error: '检查更新失败，请稍后再试。',
+  },
   licenseBlock: {
     aria: '署名与许可',
   },

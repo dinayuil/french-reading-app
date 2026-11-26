@@ -4,14 +4,23 @@ import LanguageMenu from './LanguageMenu';
 import LanguageSwitch from './LanguageSwitch';
 import MobileTabBar from './MobileTabBar';
 import { MOBILE_QUERY, useMediaQuery } from '../lib/useMediaQuery';
+import type { ReleaseUpdates } from '../features/updates/useReleaseUpdates';
 
-export default function Layout() {
+interface LayoutProps {
+  releaseUpdates?: ReleaseUpdates | null;
+}
+
+export default function Layout({ releaseUpdates }: LayoutProps) {
   const { t } = useTranslation();
   const { pathname } = useLocation();
   const isMobile = useMediaQuery(MOBILE_QUERY);
   const isImmersive =
     pathname.startsWith('/read/') || pathname.startsWith('/practice/');
   const showTabBar = isMobile && !isImmersive;
+  const releaseNotice =
+    pathname === '/' && releaseUpdates?.showNotice
+      ? releaseUpdates.release
+      : null;
 
   return (
     <div className={`layout${isMobile ? ' layout--mobile' : ''}`}>
@@ -49,6 +58,40 @@ export default function Layout() {
             </div>
           </div>
         </header>
+      )}
+
+      {releaseNotice && (
+        <aside
+          className="release-notice"
+          aria-label={t('updates.noticeLabel')}
+        >
+          <div className="container release-notice__inner">
+            <p className="release-notice__text" role="status">
+              {t('updates.available', {
+                version: releaseNotice.version,
+              })}
+            </p>
+            <div className="release-notice__actions">
+              <a
+                className="release-notice__link"
+                href={releaseNotice.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t('updates.availableLink', {
+                  version: releaseNotice.version,
+                })}
+              </a>
+              <button
+                type="button"
+                className="release-notice__dismiss"
+                onClick={releaseUpdates?.dismiss}
+              >
+                {t('updates.dismiss')}
+              </button>
+            </div>
+          </div>
+        </aside>
       )}
 
       <main

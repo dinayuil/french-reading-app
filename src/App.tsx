@@ -8,18 +8,21 @@ import ReadPage from './pages/ReadPage';
 import SettingsPage from './pages/SettingsPage';
 import StatsPage from './pages/StatsPage';
 import VocabularyPage from './pages/VocabularyPage';
+import { useReleaseUpdates } from './features/updates/useReleaseUpdates';
 import { appBasename } from './lib/basename';
 
 export default function App() {
+  const releaseUpdates = useReleaseUpdates();
+
   return (
     <BrowserRouter basename={appBasename(import.meta.env.BASE_URL)}>
       <Routes>
-        <Route element={<Layout />}>
+        <Route element={<Layout releaseUpdates={releaseUpdates} />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/read/:id" element={<ReadPage />} />
           <Route path="/practice/:id" element={<PracticePage />} />
           <Route path="/stats" element={<StatsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings" element={<SettingsPage releaseUpdates={releaseUpdates} />} />
           <Route path="/data" element={<Navigate to="/stats" replace />} />
           <Route path="/mots" element={<VocabularyPage />} />
           <Route path="/aide" element={<HelpPage />} />

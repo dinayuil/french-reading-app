@@ -398,6 +398,17 @@ const fr = {
     openHelp: "Ouvrir l'aide",
     dismiss: 'Fermer',
   },
+  updates: {
+    noticeLabel: 'Nouvelle version disponible',
+    currentVersion: 'Version actuelle : {{version}}',
+    check: 'Vérifier les mises à jour',
+    checking: 'Vérification…',
+    upToDate: 'Vous utilisez la dernière version.',
+    available: 'La version {{version}} est disponible.',
+    availableLink: 'Voir la version {{version}}',
+    dismiss: 'Masquer',
+    error: 'Impossible de vérifier les mises à jour. Réessayez plus tard.',
+  },
   licenseBlock: {
     aria: 'Attribution et licence',
   },
