@@ -1,7 +1,7 @@
 {
   "name": "french-reading-app",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Lecture et exercices de compréhension en français",
   "main": "windows/main.cjs",
   "type": "module",
