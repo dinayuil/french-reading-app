@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { Link, Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LanguageMenu from './LanguageMenu';
@@ -23,7 +24,10 @@ export default function Layout({ releaseUpdates }: LayoutProps) {
       : null;
 
   return (
-    <div className={`layout${isMobile ? ' layout--mobile' : ''}`}>
+    <div
+      className={`layout${isMobile ? ' layout--mobile' : ''}`}
+      data-platform={Capacitor.getPlatform()}
+    >
       {isMobile ? (
         <header className="mobile-top-bar">
           <div className="container mobile-top-bar__inner">

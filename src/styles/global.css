@@ -180,6 +180,7 @@ a:focus-visible {
   position: sticky;
   top: 0;
   z-index: 100;
+  padding-top: env(safe-area-inset-top, 0px);
   background-color: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   box-shadow: var(--shadow-sm);
@@ -491,6 +492,10 @@ a:focus-visible {
 
 .layout--mobile .home-page__content {
   padding-top: var(--space-4);
+}
+
+.layout--mobile[data-platform='android'] .home-page__content {
+  padding-top: var(--space-2);
 }
 
 .home-page__loading,

@@ -1,6 +1,5 @@
 /* Read page layout */
 .read-page {
-  padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: calc(var(--space-12) + env(safe-area-inset-bottom, 0px));
 }
 
@@ -12,6 +11,10 @@
     var(--color-background) 100%
   );
   border-bottom: 1px solid var(--color-border);
+}
+
+.layout--mobile[data-platform='android'] .read-header {
+  padding-top: var(--space-4);
 }
 
 .read-header__meta {
