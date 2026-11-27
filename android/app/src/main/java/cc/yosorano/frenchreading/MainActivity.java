@@ -6,6 +6,8 @@ import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 
+import androidx.core.view.WindowCompat;
+
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -33,6 +35,8 @@ public class MainActivity extends BridgeActivity {
 
         super.onCreate(savedInstanceState);
 
+        // Let Capacitor handle the system bar insets from a full-window layout.
+        WindowCompat.enableEdgeToEdge(getWindow());
         AppChromePlugin.applyThemeToWindow(this, dark, background, bars);
     }
 }

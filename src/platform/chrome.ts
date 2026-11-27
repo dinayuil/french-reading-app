@@ -1,5 +1,4 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { StatusBar, Style } from '@capacitor/status-bar';
 import type { ResolvedTheme, ThemePreference } from '../lib/theme';
 import {
   DARK_BACKGROUND,
@@ -22,9 +21,7 @@ const AppChrome = registerPlugin<AppChromePlugin>('AppChrome');
 let lastApplied: string | null = null;
 
 /**
- * Keeps the Android system bars in step with the in-app appearance. The
- * status bar uses the official Capacitor plugin; the navigation bar is set
- * by the small native AppChrome plugin registered in MainActivity.
+ * Keeps the Android system bars in step with the in-app appearance.
  */
 export async function syncNativeChrome(
   theme: ResolvedTheme,
@@ -38,14 +35,6 @@ export async function syncNativeChrome(
   const dark = theme === 'dark';
   const background = dark ? DARK_BACKGROUND : LIGHT_BACKGROUND;
   const barBackground = dark ? DARK_SURFACE : LIGHT_SURFACE;
-
-  try {
-    await StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light });
-    await StatusBar.setBackgroundColor({ color: barBackground });
-    await StatusBar.setOverlaysWebView({ overlay: false });
-  } catch {
-    // The web build and older native shells may not expose the plugin.
-  }
 
   try {
     await AppChrome.apply({

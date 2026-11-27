@@ -82,18 +82,12 @@ public class AppChromePlugin extends Plugin {
         Window window = activity.getWindow();
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
 
-        // targetSdk 36 enforces edge-to-edge on Android 15/16. Under that
-        // behavior the bar color setters are ignored and the transparent bars
-        // reveal the window/DecorView background. Paint that background with
-        // the selected in-app theme, after Capacitor has replaced the activity
-        // theme and content view in BridgeActivity.onCreate.
+        // Paint the window for areas behind the transparent system bars.
         window.setBackgroundDrawable(new ColorDrawable(backgroundColor));
         window.getDecorView().setBackgroundColor(backgroundColor);
 
-        // Solid colors still apply for apps targeting < 36 on older releases.
-        // On API 35 the opt-out may still be enforced away by targetSdk 36, so
-        // the DecorView background above is the reliable fallback.
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+        // Older Android versions still support solid system bar backgrounds.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             window.setStatusBarColor(barColor);
             window.setNavigationBarColor(barColor);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
